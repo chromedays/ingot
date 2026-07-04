@@ -37,6 +37,10 @@ void arena_allocator_t::reset() {
 }
 
 void* arena_allocator_t::alloc(int64_t bytes, int64_t align) {
+    if (bytes <= 0 || align <= 0) {
+        return nullptr;
+    }
+
     uintptr_t raw = reinterpret_cast<uintptr_t>(buffer_) + static_cast<uintptr_t>(offset_);
     uintptr_t aligned = (raw + static_cast<uintptr_t>(align) - 1) & ~(static_cast<uintptr_t>(align) - 1);
     int64_t padding = static_cast<int64_t>(aligned - raw);

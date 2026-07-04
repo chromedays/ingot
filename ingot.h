@@ -65,11 +65,14 @@ struct static_vector_t {
 
 template<typename T>
 void sv_create(static_vector_t<T>& v, allocator_t& a, int64_t capacity) {
-    v.data = static_cast<T*>(a.alloc(capacity * static_cast<int64_t>(sizeof(T)),
+    int64_t total_bytes = capacity * static_cast<int64_t>(sizeof(T));
+    ingot_assert_(total_bytes >= 0, "sv_create: capacity too large (overflow)");
+    v.data = static_cast<T*>(a.alloc(total_bytes,
                                      static_cast<int64_t>(alignof(T))));
     ingot_assert_(v.data != nullptr,
                   "sv_create: allocation failed (capacity=%lld, sizeof=%lld)",
-                  capacity, static_cast<int64_t>(sizeof(T)));
+                  static_cast<long long>(capacity),
+                  static_cast<long long>(sizeof(T)));
     v.count    = 0;
     v.capacity = capacity;
     v.alloc    = &a;
@@ -78,7 +81,8 @@ void sv_create(static_vector_t<T>& v, allocator_t& a, int64_t capacity) {
 template<typename T>
 void sv_destroy(static_vector_t<T>& v) {
     if (v.data != nullptr) {
-        v.alloc->free(v.data, v.capacity * static_cast<int64_t>(sizeof(T)));
+        int64_t total_bytes = v.capacity * static_cast<int64_t>(sizeof(T));
+        v.alloc->free(v.data, total_bytes);
     }
     v.data     = nullptr;
     v.count    = 0;
@@ -90,7 +94,8 @@ template<typename T>
 void sv_push(static_vector_t<T>& v, const T& value) {
     ingot_assert_(v.count < v.capacity,
                   "sv_push: overflow (count=%lld, capacity=%lld)",
-                  v.count, v.capacity);
+                  static_cast<long long>(v.count),
+                  static_cast<long long>(v.capacity));
     v.data[v.count] = value;
     v.count++;
 }
@@ -99,7 +104,7 @@ template<typename T>
 void sv_pop(static_vector_t<T>& v) {
     ingot_assert_(v.count > 0,
                   "sv_pop: underflow (count=%lld)",
-                  v.count);
+                  static_cast<long long>(v.count));
     v.count--;
 }
 
