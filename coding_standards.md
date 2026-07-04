@@ -45,9 +45,9 @@
 - **접두사 축약**: 타입 이름이 길어 접두사가 과도하게 길어지는 경우, 타입 이름에서 유추 가능한 축약형을 사용할 수 있습니다. 축약형은 타입별로 일관되게 적용해야 합니다.
   ```cpp
   // static_vector_t → 접두사 sv_ (static vector)
-  void sv_construct(static_vector_t<int>& v, allocator_t& a, size_t capacity);
+  void sv_create(static_vector_t<int>& v, allocator_t& a, int64_t capacity);
   void sv_push(static_vector_t<int>& v, const int& value);
-  size_t sv_count(const static_vector_t<int>& v);
+  int64_t sv_count(const static_vector_t<int>& v);
   ```
 - **operator 오버로딩 예외**: 문법상 멤버 함수만 허용되는 경우에 한해 멤버 함수를 둘 수 있습니다.
   ```cpp
@@ -60,8 +60,8 @@
   ```cpp
   class allocator_t {
   public:
-      virtual void* alloc(size_t bytes, size_t align) = 0;
-      virtual void  free(void* ptr, size_t bytes) = 0;
+      virtual void* alloc(int64_t bytes, int64_t align) = 0;
+      virtual void  free(void* ptr, int64_t bytes) = 0;
       virtual ~allocator_t() = default;
   };
   ```

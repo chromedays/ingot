@@ -37,9 +37,9 @@ namespace ingot {
 
 class allocator_t {
 public:
-    virtual void* alloc(size_t bytes, size_t align) = 0;
-    virtual void  free(void* ptr, size_t bytes) = 0;
-    virtual bool  resize(void* ptr, size_t old_bytes, size_t new_bytes, size_t align) = 0;
+    virtual void* alloc(int64_t bytes, int64_t align) = 0;
+    virtual void  free(void* ptr, int64_t bytes) = 0;
+    virtual bool  resize(void* ptr, int64_t old_bytes, int64_t new_bytes, int64_t align) = 0;
     virtual ~allocator_t() = default;
 };
 
@@ -69,7 +69,7 @@ public:
 
 ### 2.3 `free`는 원래 바이트 수를 받는다
 
-`free(void* ptr, size_t bytes)`는 원래 할당 크기를 받는다. 이를 통해 풀 할당자는 할당별 메타데이터를 저장하지 않고도 올른 버킷에 블록을 반환할 수 있다. 필요 없는 할당자에는 아무 비용도 없다(파라미터를 무시).
+`free(void* ptr, int64_t bytes)`는 원래 할당 크기를 받는다. 이를 통해 풀 할당자는 할당별 메타데이터를 저장하지 않고도 올른 버킷에 블록을 반환할 수 있다. 필요 없는 할당자에는 아무 비용도 없다(파라미터를 무시).
 
 ---
 
@@ -84,9 +84,9 @@ namespace ingot {
 
 class heap_allocator_t : public allocator_t {
 public:
-    void* alloc(size_t bytes, size_t align) override;
-    void  free(void* ptr, size_t bytes) override;
-    bool  resize(void* ptr, size_t old_bytes, size_t new_bytes, size_t align) override;
+    void* alloc(int64_t bytes, int64_t align) override;
+    void  free(void* ptr, int64_t bytes) override;
+    bool  resize(void* ptr, int64_t old_bytes, int64_t new_bytes, int64_t align) override;
 };
 
 }
@@ -103,17 +103,17 @@ public:
 namespace ingot {
 
 class arena_allocator_t : public allocator_t {
-    void*  buffer_;
-    size_t offset_;
-    size_t size_;
+    void*   buffer_;
+    int64_t offset_;
+    int64_t size_;
 public:
-    void construct(void* backing_buffer, size_t buffer_size);
+    void construct(void* backing_buffer, int64_t buffer_size);
     void destroy();
     void reset();
 
-    void* alloc(size_t bytes, size_t align) override;
-    void  free(void* ptr, size_t bytes) override;
-    bool  resize(void* ptr, size_t old_bytes, size_t new_bytes, size_t align) override;
+    void* alloc(int64_t bytes, int64_t align) override;
+    void  free(void* ptr, int64_t bytes) override;
+    bool  resize(void* ptr, int64_t old_bytes, int64_t new_bytes, int64_t align) override;
 };
 
 }
@@ -144,12 +144,12 @@ struct static_vector_t {
                   "static_vector_t requires POD types");
 
     T*           data;
-    size_t       count;
-    size_t       capacity;
+    int64_t      count;
+    int64_t      capacity;
     allocator_t* alloc;
 
-    T&       operator[](size_t index)       { return data[index]; }
-    const T& operator[](size_t index) const { return data[index]; }
+    T&       operator[](int64_t index)       { return data[index]; }
+    const T& operator[](int64_t index) const { return data[index]; }
 };
 
 }
@@ -158,7 +158,7 @@ struct static_vector_t {
 - **POD 구조체** — 네 개의 데이터 멤버(64비트에서 32바이트), 숨겨진 상태 없음, 구조체 수준에서 trivially copyable.
 - **인스턴스 시점 `static_assert`** — 구조체 본문 내에 배치되어 `static_vector_t<non_pod>`가 인스턴스화되는 순간, 어떤 함수도 호출되기 전에 발생. 코딩 표준에 따라 POD 제약을 컴파일 타임에 강제.
 - **`operator[]`는 멤버** — 코딩 표준의 operator 오버로딩 예외. 바운드 체크 없음(4.4절 참조).
-- **생성자/소멸자 없음** — 생성과 소멸은 명시적 자유 함수(`sv_construct`, `sv_destroy`). RAII 없음. 사용자가 수명을 제어.
+- **생성자/소멸자 없음** — 생성과 소멸은 명시적 자유 함수(`sv_create`, `sv_destroy`). RAII 없음. 사용자가 수명을 제어.
 
 ### 4.2 자유 함수 API (`sv_` 접두사)
 
@@ -167,7 +167,7 @@ struct static_vector_t {
 ```cpp
 // 생명주기
 template<typename T>
-void sv_construct(static_vector_t<T>& v, allocator_t& a, size_t capacity);
+void sv_create(static_vector_t<T>& v, allocator_t& a, int64_t capacity);
 
 template<typename T>
 void sv_destroy(static_vector_t<T>& v);
@@ -182,7 +182,7 @@ void sv_pop(static_vector_t<T>& v);
 template<typename T>
 void sv_clear(static_vector_t<T>& v);
 
-// 반복 (ADL을 통한 range-for 호환)
+// 반복 (sv_ 접두사 함수 + ADL을 통한 range-for 호환)
 template<typename T>
 T*       sv_begin(static_vector_t<T>& v);
 template<typename T>
@@ -192,11 +192,21 @@ const T* sv_begin(const static_vector_t<T>& v);
 template<typename T>
 const T* sv_end(const static_vector_t<T>& v);
 
+// range-for ADL 어댑터
+template<typename T>
+T*       begin(static_vector_t<T>& v);
+template<typename T>
+T*       end(static_vector_t<T>& v);
+template<typename T>
+const T* begin(const static_vector_t<T>& v);
+template<typename T>
+const T* end(const static_vector_t<T>& v);
+
 // 접근자
 template<typename T>
-size_t sv_count(const static_vector_t<T>& v);
+int64_t sv_count(const static_vector_t<T>& v);
 template<typename T>
-size_t sv_capacity(const static_vector_t<T>& v);
+int64_t sv_capacity(const static_vector_t<T>& v);
 template<typename T>
 bool   sv_empty(const static_vector_t<T>& v);
 template<typename T>
@@ -205,7 +215,7 @@ bool   sv_full(const static_vector_t<T>& v);
 
 ### 4.3 구현 의미론
 
-**`sv_construct(v, a, capacity)`:**
+**`sv_create(v, a, capacity)`:**
 - `a.alloc(...)`을 통해 `capacity * sizeof(T)` 바이트를 `alignof(T)` 정렬로 할당.
 - `v.data`, `v.count = 0`, `v.capacity = capacity`, `v.alloc = &a` 설정.
 - 할당 실패 시 `ingot_assert_` (`data == nullptr`).
@@ -230,7 +240,8 @@ bool   sv_full(const static_vector_t<T>& v);
 
 **`sv_begin` / `sv_end`:**
 - 각각 `v.data`와 `v.data + v.count` 반환.
-- 원시 포인터 반복 — ADL을 통해 `for (auto& x : v) { ... }` 가능.
+- 원시 포인터 반복.
+- `begin`/`end` 어댑터 함수가 `sv_begin`/`sv_end`에 위임하여 ADL을 통해 `for (auto& x : v) { ... }` 가능.
 
 ### 4.4 바운드 체크 정책
 
@@ -339,7 +350,7 @@ int main() {
 
     {
         ingot::static_vector_t<int> v;
-        ingot::sv_construct(v, arena, 64);
+        ingot::sv_create(v, arena, 64);
 
         for (int i = 0; i < 10; ++i) {
             ingot::sv_push(v, i * i);
@@ -391,7 +402,7 @@ int main() {
 | 오버플로우 동작 | `ingot_assert_` (크래시) | 논리 버그는 크게 실패해야; 매크로는 오버라이드 가능 |
 | `operator[]` 바운드 체크 | 아니오 | 성능; 체크된 접근(`sv_at`)은 연기 |
 | 생성 시 버퍼 제로화 | 아니오 | POD에 낭비; 제로화는 원하면 할당자의 역할 |
-| RAII | 아니오 | 명시적 `sv_construct`/`sv_destroy`; 사용자가 수명 제어 |
+| RAII | 아니오 | 명시적 `sv_create`/`sv_destroy`; 사용자가 수명 제어 |
 | 배포 | 두 파일 (`ingot.h` + `ingot.cpp`) | 응집적, 단일 TU가 구현 정의 |
 | 네임스페이스 | `ingot` | 짧고, 산업적, 충돌 없음 |
 | Assert 매크로 접두사 | `ingot_assert_` | 매크로는 네임스페이스 불가; 접두사로 충돌 회피 |

@@ -1,0 +1,3 @@
+add_executable(test_static_vector test_static_vector.cpp)
+target_link_libraries(test_static_vector PRIVATE ingot)
+add_test(NAME test_static_vector COMMAND test_static_vector)
