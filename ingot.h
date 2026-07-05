@@ -175,6 +175,9 @@ static_assert(std::is_trivially_copyable_v<string_t> && std::is_standard_layout_
 inline string_t str_from(const char* data, int64_t len) {
     ingot_assert_(len >= 0, "str_from: negative length (len=%lld)",
                   static_cast<long long>(len));
+    ingot_assert_(data != nullptr || len == 0,
+                  "str_from: null data with non-zero length (len=%lld)",
+                  static_cast<long long>(len));
     return string_t{.data = data, .len = len};
 }
 
