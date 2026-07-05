@@ -3,6 +3,7 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <cstring>
 #include <type_traits>
 
 #ifndef ingot_assert_
@@ -160,6 +161,39 @@ bool sv_empty(const static_vector_t<T>& v) {
 template<typename T>
 bool sv_full(const static_vector_t<T>& v) {
     return v.count >= v.capacity;
+}
+
+// === 스트링 타입 ===
+
+struct string_t {
+    const char* data;
+    int64_t     len;
+};
+static_assert(std::is_trivially_copyable_v<string_t> && std::is_standard_layout_v<string_t>,
+              "string_t must be POD");
+
+inline string_t str_from(const char* data, int64_t len) {
+    ingot_assert_(len >= 0, "str_from: negative length (len=%lld)",
+                  static_cast<long long>(len));
+    return string_t{.data = data, .len = len};
+}
+
+template <int64_t N>
+constexpr string_t str_lit(const char (&s)[N]) {
+    return string_t{.data = s, .len = N - 1};
+}
+
+string_t str_from_cstr(const char* s);
+
+inline int64_t     str_len(string_t s)      { return s.len; }
+inline bool        str_is_empty(string_t s) { return s.len == 0; }
+inline const char* str_data(string_t s)     { return s.data; }
+
+inline char str_at(string_t s, int64_t index) {
+    ingot_assert_(index >= 0 && index < s.len,
+                  "str_at: index out of range (index=%lld, len=%lld)",
+                  static_cast<long long>(index), static_cast<long long>(s.len));
+    return s.data[index];
 }
 
 } // namespace ingot

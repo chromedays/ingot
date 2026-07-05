@@ -75,4 +75,9 @@ bool arena_allocator_t::resize(void* ptr, int64_t old_bytes,
     return true;
 }
 
+string_t str_from_cstr(const char* s) {
+    ingot_assert_(s != nullptr, "str_from_cstr: null pointer");
+    return string_t{.data = s, .len = static_cast<int64_t>(std::strlen(s))};
+}
+
 } // namespace ingot
