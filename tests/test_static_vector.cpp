@@ -8,16 +8,16 @@ TEST_CASE("construct/destroy") {
     ingot::static_vector_t<int> v;
 
     ingot::sv_create(v, heap, 10);
-    CHECK_MESSAGE(v.data != nullptr, "data should not be null");
-    CHECK(sv_count(v) == 0);
-    CHECK(sv_capacity(v) == 10);
-    CHECK(v.alloc == &heap);
+    REQUIRE_MESSAGE(v.data != nullptr, "data should not be null");
+    CHECK_MESSAGE(sv_count(v) == 0, "count should be 0");
+    CHECK_MESSAGE(sv_capacity(v) == 10, "capacity should be 10");
+    CHECK_MESSAGE(v.alloc == &heap, "alloc should be heap");
 
     ingot::sv_destroy(v);
-    CHECK(v.data == nullptr);
-    CHECK(v.count == 0);
-    CHECK(v.capacity == 0);
-    CHECK(v.alloc == nullptr);
+    CHECK_MESSAGE(v.data == nullptr, "data should be null after destroy");
+    CHECK_MESSAGE(v.count == 0, "count should be 0 after destroy");
+    CHECK_MESSAGE(v.capacity == 0, "capacity should be 0 after destroy");
+    CHECK_MESSAGE(v.alloc == nullptr, "alloc should be null after destroy");
 }
 
 TEST_CASE("double destroy is no-op") {
@@ -37,22 +37,22 @@ TEST_CASE("push/pop") {
     ingot::sv_create(v, heap, 5);
 
     ingot::sv_push(v, 10);
-    CHECK(sv_count(v) == 1);
-    CHECK(v[0] == 10);
+    CHECK_MESSAGE(sv_count(v) == 1, "count after push");
+    CHECK_MESSAGE(v[0] == 10, "value after push");
 
     ingot::sv_push(v, 20);
     ingot::sv_push(v, 30);
-    CHECK(sv_count(v) == 3);
-    CHECK(v[0] == 10);
-    CHECK(v[1] == 20);
-    CHECK(v[2] == 30);
+    CHECK_MESSAGE(sv_count(v) == 3, "count after 3 pushes");
+    CHECK_MESSAGE(v[0] == 10, "v[0]");
+    CHECK_MESSAGE(v[1] == 20, "v[1]");
+    CHECK_MESSAGE(v[2] == 30, "v[2]");
 
     ingot::sv_pop(v);
-    CHECK(sv_count(v) == 2);
+    CHECK_MESSAGE(sv_count(v) == 2, "count after pop");
 
     ingot::sv_pop(v);
     ingot::sv_pop(v);
-    CHECK(sv_count(v) == 0);
+    CHECK_MESSAGE(sv_count(v) == 0, "count after all popped");
 
     ingot::sv_destroy(v);
 }
@@ -67,9 +67,9 @@ TEST_CASE("clear") {
     ingot::sv_push(v, 3);
 
     ingot::sv_clear(v);
-    CHECK(sv_count(v) == 0);
-    CHECK(sv_capacity(v) == 10);
-    CHECK(v.data != nullptr);
+    CHECK_MESSAGE(sv_count(v) == 0, "count after clear");
+    CHECK_MESSAGE(sv_capacity(v) == 10, "capacity unchanged");
+    CHECK_MESSAGE(v.data != nullptr, "data still valid");
 
     ingot::sv_destroy(v);
 }
@@ -79,15 +79,15 @@ TEST_CASE("empty/full") {
     ingot::static_vector_t<int> v;
 
     ingot::sv_create(v, heap, 3);
-    CHECK(sv_empty(v));
-    CHECK(!sv_full(v));
+    CHECK_MESSAGE(sv_empty(v), "should be empty initially");
+    CHECK_MESSAGE(!sv_full(v), "should not be full initially");
 
     ingot::sv_push(v, 1);
-    CHECK(!sv_empty(v));
+    CHECK_MESSAGE(!sv_empty(v), "not empty after push");
 
     ingot::sv_push(v, 2);
     ingot::sv_push(v, 3);
-    CHECK(sv_full(v));
+    CHECK_MESSAGE(sv_full(v), "should be full after 3 pushes");
 
     ingot::sv_destroy(v);
 }
@@ -104,11 +104,11 @@ TEST_CASE("iteration (range-for)") {
     int expected = 10;
     int count = 0;
     for (int x : v) {
-        CHECK(x == expected);
+        CHECK_MESSAGE(x == expected, "iter value mismatch");
         expected += 10;
         count++;
     }
-    CHECK(count == 3);
+    CHECK_MESSAGE(count == 3, "iter should visit 3 elements");
 
     ingot::sv_destroy(v);
 }
@@ -122,7 +122,7 @@ TEST_CASE("arena allocator") {
     ingot::static_vector_t<int> v;
     ingot::sv_create(v, arena, 64);
 
-    CHECK_MESSAGE(v.data != nullptr, "arena allocation should succeed");
+    REQUIRE_MESSAGE(v.data != nullptr, "arena allocation should succeed");
 
     for (int i = 0; i < 10; ++i) {
         ingot::sv_push(v, i * i);
@@ -144,7 +144,7 @@ TEST_CASE("arena resize") {
     REQUIRE_MESSAGE(p != nullptr, "initial alloc should succeed");
 
     bool ok = arena.resize(p, 32, 64, 8);
-    CHECK(ok);
+    CHECK_MESSAGE(ok, "resize of last alloc should succeed");
 
     arena.free(p, 64);
     arena.reset();
@@ -163,7 +163,7 @@ TEST_CASE("arena resize (not last)") {
     REQUIRE_MESSAGE(p2 != nullptr, "second alloc should succeed");
 
     bool ok = arena.resize(p1, 32, 64, 8);
-    CHECK(!ok);
+    CHECK_MESSAGE(!ok, "resize of non-last alloc should fail");
 
     arena.reset();
     arena.destroy();
@@ -176,7 +176,7 @@ TEST_CASE("heap resize always false") {
     REQUIRE_MESSAGE(p != nullptr, "heap alloc should succeed");
 
     bool ok = heap.resize(p, 32, 64, 8);
-    CHECK(!ok);
+    CHECK_MESSAGE(!ok, "heap resize should return false");
 
     heap.free(p, 32);
 }
