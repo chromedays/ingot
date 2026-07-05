@@ -38,3 +38,37 @@ TEST_CASE("string_t: empty view") {
     CHECK_MESSAGE(ingot::str_is_empty(e), "empty");
     CHECK_MESSAGE(ingot::str_len(e) == 0, "len 0");
 }
+
+TEST_CASE("string_t: str_equal") {
+    ingot::string_t a = ingot::str_from_cstr("hello");
+    ingot::string_t b = ingot::str_from_cstr("hello");
+    ingot::string_t c = ingot::str_from_cstr("world");
+    CHECK_MESSAGE(ingot::str_equal(a, b), "equal contents");
+    CHECK_MESSAGE(!ingot::str_equal(a, c), "different contents");
+    CHECK_MESSAGE(ingot::str_equal(ingot::str_from("", 0), ingot::str_from("", 0)),
+                  "two empty views equal");
+    CHECK_MESSAGE(!ingot::str_equal(ingot::str_from_cstr("hi"), ingot::str_from_cstr("hi!")),
+                  "different lengths not equal");
+}
+
+TEST_CASE("string_t: str_slice") {
+    ingot::string_t s = ingot::str_from_cstr("hello world");
+    ingot::string_t sub = ingot::str_slice(s, 6, 11);
+    CHECK_MESSAGE(ingot::str_equal(sub, ingot::str_from_cstr("world")), "substring");
+    CHECK_MESSAGE(ingot::str_len(sub) == 5, "substring len");
+    ingot::string_t empty_slice = ingot::str_slice(s, 0, 0);
+    CHECK_MESSAGE(ingot::str_is_empty(empty_slice), "zero-width slice");
+    ingot::string_t full_slice = ingot::str_slice(s, 0, 11);
+    CHECK_MESSAGE(ingot::str_equal(full_slice, s), "full slice equals source");
+}
+
+TEST_CASE("string_t: byte range-for") {
+    ingot::string_t s = ingot::str_from_cstr("abc");
+    const char expected[] = {'a', 'b', 'c'};
+    int count = 0;
+    for (char c : s) {
+        CHECK_MESSAGE(c == expected[count], "byte mismatch");
+        count++;
+    }
+    CHECK_MESSAGE(count == 3, "should visit 3 bytes");
+}

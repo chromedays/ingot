@@ -80,4 +80,10 @@ string_t str_from_cstr(const char* s) {
     return string_t{.data = s, .len = static_cast<int64_t>(std::strlen(s))};
 }
 
+bool str_equal(string_t a, string_t b) {
+    if (a.len != b.len) return false;
+    if (a.len == 0) return true;
+    return std::memcmp(a.data, b.data, static_cast<size_t>(a.len)) == 0;
+}
+
 } // namespace ingot

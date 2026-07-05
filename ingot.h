@@ -184,6 +184,7 @@ constexpr string_t str_lit(const char (&s)[N]) {
 }
 
 string_t str_from_cstr(const char* s);
+bool     str_equal(string_t a, string_t b);
 
 inline int64_t     str_len(string_t s)      { return s.len; }
 inline bool        str_is_empty(string_t s) { return s.len == 0; }
@@ -195,6 +196,20 @@ inline char str_at(string_t s, int64_t index) {
                   static_cast<long long>(index), static_cast<long long>(s.len));
     return s.data[index];
 }
+
+inline string_t str_slice(string_t s, int64_t begin, int64_t end) {
+    ingot_assert_(begin >= 0 && end >= begin && end <= s.len,
+                  "str_slice: invalid range (begin=%lld, end=%lld, len=%lld)",
+                  static_cast<long long>(begin),
+                  static_cast<long long>(end),
+                  static_cast<long long>(s.len));
+    return string_t{.data = s.data + begin, .len = end - begin};
+}
+
+inline const char* str_begin(string_t s) { return s.data; }
+inline const char* str_end(string_t s)   { return s.data + s.len; }
+inline const char* begin(string_t s)     { return str_begin(s); }
+inline const char* end(string_t s)       { return str_end(s); }
 
 } // namespace ingot
 
