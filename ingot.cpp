@@ -193,9 +193,9 @@ char32_t utf8_decode_rune(const char* p, int64_t remaining, int* out_width) {
         return utf8_rune_error;
     }
 
-    int      width;
-    char32_t code;
-    char32_t min;
+    int      width = 0;
+    char32_t code  = 0;
+    char32_t min   = 0;
     if ((b0 & 0xE0) == 0xC0) {
         width = 2; code = b0 & 0x1F; min = 0x80;
     } else if ((b0 & 0xF0) == 0xE0) {
@@ -260,7 +260,7 @@ bool utf8_validate(string_t s) {
     while (remaining > 0) {
         int      width;
         char32_t r = utf8_decode_rune(p, remaining, &width);
-        if (r == utf8_rune_error && width == 1) {
+        if (r == utf8_rune_error) {
             return false;
         }
         p += width;
