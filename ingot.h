@@ -211,6 +211,58 @@ inline const char* str_end(string_t s)   { return s.data + s.len; }
 inline const char* begin(string_t s)     { return str_begin(s); }
 inline const char* end(string_t s)       { return str_end(s); }
 
+// === 스트링 빌더 ===
+
+struct string_builder_t {
+    char*        data;
+    int64_t      len;
+    int64_t      capacity;
+    allocator_t* alloc;
+};
+static_assert(std::is_trivially_copyable_v<string_builder_t> && std::is_standard_layout_v<string_builder_t>,
+              "string_builder_t must be POD");
+
+void sb_create(string_builder_t& b, allocator_t& a, int64_t initial_capacity);
+void sb_destroy(string_builder_t& b);
+
+inline int64_t sb_len(const string_builder_t& b)      { return b.len; }
+inline int64_t sb_capacity(const string_builder_t& b) { return b.capacity; }
+inline bool    sb_is_empty(const string_builder_t& b) { return b.len == 0; }
+inline const char* sb_data(const string_builder_t& b) { return b.data; }
+inline char*       sb_data(string_builder_t& b)       { return b.data; }
+
+inline char sb_at(const string_builder_t& b, int64_t index) {
+    ingot_assert_(index >= 0 && index < b.len,
+                  "sb_at: index out of range (index=%lld, len=%lld)",
+                  static_cast<long long>(index), static_cast<long long>(b.len));
+    return b.data[index];
+}
+
+inline void sb_clear(string_builder_t& b) { b.len = 0; }
+
+inline void sb_truncate(string_builder_t& b, int64_t new_len) {
+    ingot_assert_(new_len >= 0 && new_len <= b.len,
+                  "sb_truncate: invalid new_len (new_len=%lld, len=%lld)",
+                  static_cast<long long>(new_len), static_cast<long long>(b.len));
+    b.len = new_len;
+}
+
+inline void sb_pop(string_builder_t& b) {
+    ingot_assert_(b.len > 0, "sb_pop: underflow (len=0)");
+    b.len--;
+}
+
+void sb_append_char(string_builder_t& b, char c);
+void sb_append_bytes(string_builder_t& b, const char* p, int64_t n);
+void sb_append_cstr(string_builder_t& b, const char* s);
+void sb_append_view(string_builder_t& b, string_t v);
+void sb_reserve(string_builder_t& b, int64_t total_capacity);
+char* sb_to_cstring(const string_builder_t& b, allocator_t& alloc);
+
+inline string_t sb_to_string(const string_builder_t& b) {
+    return string_t{.data = b.data, .len = b.len};
+}
+
 } // namespace ingot
 
 #endif // INGOT_H_
