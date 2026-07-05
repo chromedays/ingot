@@ -346,3 +346,38 @@ TEST_CASE("utf8: rune_count") {
                   "mixed ASCII + multibyte");
     CHECK_MESSAGE(ingot::utf8_rune_count(ingot::str_from("", 0)) == 0, "empty 0 runes");
 }
+
+TEST_CASE("utf8_rune_view: range-for over multibyte") {
+    ingot::string_t s = ingot::str_from_cstr("A세");  // A(1) + 세(3) = 4 bytes, 2 runes
+    char32_t collected[4];
+    int count = 0;
+    for (char32_t r : ingot::utf8_runes(s)) {
+        collected[count++] = r;
+    }
+    CHECK_MESSAGE(count == 2, "2 runes from 4 bytes");
+    CHECK_MESSAGE(collected[0] == U'A', "first rune A");
+    CHECK_MESSAGE(collected[1] == 0xC138, "second rune 세");
+}
+
+TEST_CASE("utf8_rune_view: empty string") {
+    ingot::string_t e = ingot::str_from("", 0);
+    int count = 0;
+    for (char32_t r : ingot::utf8_runes(e)) {
+        (void)r;
+        count++;
+    }
+    CHECK_MESSAGE(count == 0, "no runes from empty");
+}
+
+TEST_CASE("utf8_rune_view: invalid byte yields replacement") {
+    const char* bad = "\xFF\x41";  // invalid + 'A'
+    ingot::string_t s = ingot::str_from(bad, 2);
+    int count = 0;
+    char32_t first = 0;
+    for (char32_t r : ingot::utf8_runes(s)) {
+        if (count == 0) first = r;
+        count++;
+    }
+    CHECK_MESSAGE(count == 2, "2 runes (1 invalid + 1 valid)");
+    CHECK_MESSAGE(first == ingot::utf8_rune_error, "invalid byte -> U+FFFD");
+}

@@ -382,6 +382,72 @@ int     utf8_encode_rune(char32_t rune, char* out_buf);
 bool    utf8_validate(string_t s);
 int64_t utf8_rune_count(string_t s);
 
+struct utf8_rune_view_t {
+    string_t source;
+};
+static_assert(std::is_trivially_copyable_v<utf8_rune_view_t> &&
+              std::is_standard_layout_v<utf8_rune_view_t>,
+              "utf8_rune_view_t must be POD");
+
+struct utf8_rune_cursor_t {
+    const char* p;
+    const char* end;
+    char32_t    current;
+    int         width;
+};
+static_assert(std::is_trivially_copyable_v<utf8_rune_cursor_t> &&
+              std::is_standard_layout_v<utf8_rune_cursor_t>,
+              "utf8_rune_cursor_t must be POD");
+
+inline utf8_rune_view_t utf8_runes(string_t s) {
+    return utf8_rune_view_t{.source = s};
+}
+
+inline utf8_rune_cursor_t begin(utf8_rune_view_t v) {
+    utf8_rune_cursor_t c;
+    c.p   = v.source.data;
+    c.end = v.source.data + v.source.len;
+    if (c.p < c.end) {
+        int width;
+        c.current = utf8_decode_rune(c.p, static_cast<int64_t>(c.end - c.p), &width);
+        c.width   = width;
+    } else {
+        c.current = 0;
+        c.width   = 0;
+    }
+    return c;
+}
+
+inline utf8_rune_cursor_t end(utf8_rune_view_t v) {
+    utf8_rune_cursor_t c;
+    c.p       = v.source.data + v.source.len;
+    c.end     = c.p;
+    c.current = 0;
+    c.width   = 0;
+    return c;
+}
+
+inline char32_t operator*(utf8_rune_cursor_t c) {
+    return c.current;
+}
+
+inline utf8_rune_cursor_t& operator++(utf8_rune_cursor_t& c) {
+    c.p += c.width;
+    if (c.p < c.end) {
+        int width;
+        c.current = utf8_decode_rune(c.p, static_cast<int64_t>(c.end - c.p), &width);
+        c.width   = width;
+    } else {
+        c.current = 0;
+        c.width   = 0;
+    }
+    return c;
+}
+
+inline bool operator!=(utf8_rune_cursor_t a, utf8_rune_cursor_t b) {
+    return a.p != b.p;
+}
+
 } // namespace ingot
 
 #endif // INGOT_H_
