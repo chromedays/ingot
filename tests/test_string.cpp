@@ -81,6 +81,7 @@ TEST_CASE("string_builder_t: create/destroy") {
     ingot::sb_create(b, heap, 16);
     REQUIRE_MESSAGE(b.data != nullptr, "data should not be null after create");
     CHECK_MESSAGE(ingot::sb_len(b) == 0, "len 0 after create");
+    CHECK_MESSAGE(ingot::sb_is_empty(b), "should be empty after create");
     CHECK_MESSAGE(ingot::sb_capacity(b) == 16, "capacity preserved");
     CHECK_MESSAGE(b.alloc == &heap, "alloc stored");
     ingot::sb_destroy(b);
@@ -201,5 +202,17 @@ TEST_CASE("string_builder_t: to_cstring") {
     CHECK_MESSAGE(std::strcmp(cstr, "hello") == 0, "NUL-terminated copy");
     CHECK_MESSAGE(cstr[5] == '\0', "explicit NUL at len");
     heap.free(cstr, ingot::sb_len(b) + 1);
+    ingot::sb_destroy(b);
+}
+
+TEST_CASE("string_builder_t: to_cstring empty") {
+    ingot::heap_allocator_t heap;
+    ingot::string_builder_t b;
+    ingot::sb_create(b, heap, 4);
+    char* cstr = ingot::sb_to_cstring(b, heap);
+    REQUIRE_MESSAGE(cstr != nullptr, "to_cstring should allocate");
+    CHECK_MESSAGE(std::strcmp(cstr, "") == 0, "empty cstring");
+    CHECK_MESSAGE(cstr[0] == '\0', "NUL at position 0");
+    heap.free(cstr, 1);
     ingot::sb_destroy(b);
 }
