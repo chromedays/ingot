@@ -263,6 +263,116 @@ inline string_t sb_to_string(const string_builder_t& b) {
     return string_t{.data = b.data, .len = b.len};
 }
 
+// === 스태틱 스트링 빌더 (스택 소유자, 하드 캡) ===
+
+template <int64_t N>
+struct static_string_builder_t {
+    static_assert(N > 0, "static_string_builder_t<N>: N must be > 0");
+    char    buffer[N];
+    int64_t len;
+};
+static_assert(std::is_trivially_copyable_v<static_string_builder_t<16>> &&
+              std::is_standard_layout_v<static_string_builder_t<16>>,
+              "static_string_builder_t must be POD");
+
+template <int64_t N>
+inline void ssb_create(static_string_builder_t<N>& b) {
+    b.len = 0;
+}
+
+template <int64_t N>
+inline int64_t ssb_capacity(const static_string_builder_t<N>&) { return N; }
+
+template <int64_t N>
+inline int64_t ssb_len(const static_string_builder_t<N>& b) { return b.len; }
+
+template <int64_t N>
+inline bool ssb_is_empty(const static_string_builder_t<N>& b) { return b.len == 0; }
+
+template <int64_t N>
+inline bool ssb_is_full(const static_string_builder_t<N>& b) { return b.len >= N; }
+
+template <int64_t N>
+inline const char* ssb_data(const static_string_builder_t<N>& b) { return b.buffer; }
+
+template <int64_t N>
+inline char* ssb_data(static_string_builder_t<N>& b) { return b.buffer; }
+
+template <int64_t N>
+inline string_t ssb_to_string(const static_string_builder_t<N>& b) {
+    return string_t{.data = b.buffer, .len = b.len};
+}
+
+template <int64_t N>
+inline void ssb_append_bytes(static_string_builder_t<N>& b, const char* p, int64_t n) {
+    ingot_assert_(n >= 0, "ssb_append_bytes: negative length (n=%lld)",
+                  static_cast<long long>(n));
+    ingot_assert_(b.len + n <= N,
+                  "ssb_append_bytes: overflow (len=%lld, add=%lld, capacity=%lld)",
+                  static_cast<long long>(b.len), static_cast<long long>(n),
+                  static_cast<long long>(N));
+    if (n == 0) return;
+    ingot_assert_(p != nullptr, "ssb_append_bytes: null pointer with n>0");
+    std::memcpy(b.buffer + b.len, p, static_cast<size_t>(n));
+    b.len += n;
+}
+
+template <int64_t N>
+inline void ssb_append_char(static_string_builder_t<N>& b, char c) {
+    ingot_assert_(b.len < N,
+                  "ssb_append_char: overflow (len=%lld, capacity=%lld)",
+                  static_cast<long long>(b.len), static_cast<long long>(N));
+    b.buffer[b.len] = c;
+    b.len++;
+}
+
+template <int64_t N>
+inline void ssb_append_cstr(static_string_builder_t<N>& b, const char* s) {
+    ingot_assert_(s != nullptr, "ssb_append_cstr: null pointer");
+    ssb_append_bytes(b, s, static_cast<int64_t>(std::strlen(s)));
+}
+
+template <int64_t N>
+inline void ssb_append_view(static_string_builder_t<N>& b, string_t v) {
+    ssb_append_bytes(b, v.data, v.len);
+}
+
+template <int64_t N>
+inline char ssb_at(const static_string_builder_t<N>& b, int64_t index) {
+    ingot_assert_(index >= 0 && index < b.len,
+                  "ssb_at: index out of range (index=%lld, len=%lld)",
+                  static_cast<long long>(index), static_cast<long long>(b.len));
+    return b.buffer[index];
+}
+
+template <int64_t N>
+inline void ssb_clear(static_string_builder_t<N>& b) { b.len = 0; }
+
+template <int64_t N>
+inline void ssb_truncate(static_string_builder_t<N>& b, int64_t new_len) {
+    ingot_assert_(new_len >= 0 && new_len <= b.len,
+                  "ssb_truncate: invalid new_len (new_len=%lld, len=%lld)",
+                  static_cast<long long>(new_len), static_cast<long long>(b.len));
+    b.len = new_len;
+}
+
+template <int64_t N>
+inline void ssb_pop(static_string_builder_t<N>& b) {
+    ingot_assert_(b.len > 0, "ssb_pop: underflow (len=0)");
+    b.len--;
+}
+
+template <int64_t N>
+inline char* ssb_to_cstring(const static_string_builder_t<N>& b, allocator_t& alloc) {
+    char* out = static_cast<char*>(alloc.alloc(b.len + 1, 1));
+    ingot_assert_(out != nullptr, "ssb_to_cstring: allocation failed");
+    if (b.len > 0) {
+        std::memcpy(out, b.buffer, static_cast<size_t>(b.len));
+    }
+    out[b.len] = '\0';
+    return out;
+}
+
 } // namespace ingot
 
 #endif // INGOT_H_

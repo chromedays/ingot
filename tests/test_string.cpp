@@ -216,3 +216,68 @@ TEST_CASE("string_builder_t: to_cstring empty") {
     heap.free(cstr, 1);
     ingot::sb_destroy(b);
 }
+
+TEST_CASE("static_string_builder_t: create and append") {
+    ingot::static_string_builder_t<16> b;
+    ingot::ssb_create(b);
+    CHECK_MESSAGE(ingot::ssb_len(b) == 0, "len 0 after create");
+    CHECK_MESSAGE(ingot::ssb_is_empty(b), "empty");
+
+    ingot::ssb_append_cstr(b, "hello");
+    CHECK_MESSAGE(ingot::ssb_len(b) == 5, "len 5");
+    CHECK_MESSAGE(ingot::str_equal(ingot::ssb_to_string(b), ingot::str_from_cstr("hello")),
+                  "contents");
+    CHECK_MESSAGE(ingot::ssb_capacity(b) == 16, "capacity is N");
+}
+
+TEST_CASE("static_string_builder_t: is_full and remaining") {
+    ingot::static_string_builder_t<3> b;
+    ingot::ssb_create(b);
+    CHECK_MESSAGE(!ingot::ssb_is_full(b), "not full initially");
+    ingot::ssb_append_char(b, 'a');
+    ingot::ssb_append_char(b, 'b');
+    ingot::ssb_append_char(b, 'c');
+    CHECK_MESSAGE(ingot::ssb_is_full(b), "full at N");
+    CHECK_MESSAGE(ingot::ssb_len(b) == 3, "len == N");
+}
+
+TEST_CASE("static_string_builder_t: append_view/bytes") {
+    ingot::static_string_builder_t<32> b;
+    ingot::ssb_create(b);
+    ingot::ssb_append_view(b, ingot::str_from_cstr("foo"));
+    ingot::ssb_append_bytes(b, "bar", 3);
+    CHECK_MESSAGE(ingot::str_equal(ingot::ssb_to_string(b), ingot::str_from_cstr("foobar")),
+                  "assembled");
+}
+
+TEST_CASE("static_string_builder_t: clear/truncate/pop/at") {
+    ingot::static_string_builder_t<16> b;
+    ingot::ssb_create(b);
+    ingot::ssb_append_cstr(b, "hello");
+
+    CHECK_MESSAGE(ingot::ssb_at(b, 0) == 'h', "at 0");
+    CHECK_MESSAGE(ingot::ssb_at(b, 4) == 'o', "at 4");
+
+    ingot::ssb_truncate(b, 3);
+    CHECK_MESSAGE(ingot::ssb_len(b) == 3, "truncate to 3");
+
+    ingot::ssb_pop(b);
+    CHECK_MESSAGE(ingot::ssb_len(b) == 2, "pop");
+
+    ingot::ssb_clear(b);
+    CHECK_MESSAGE(ingot::ssb_len(b) == 0, "clear");
+    CHECK_MESSAGE(ingot::ssb_capacity(b) == 16, "capacity unchanged");
+}
+
+TEST_CASE("static_string_builder_t: to_cstring") {
+    ingot::static_string_builder_t<16> b;
+    ingot::ssb_create(b);
+    ingot::ssb_append_cstr(b, "hi");
+
+    ingot::heap_allocator_t heap;
+    char* cstr = ingot::ssb_to_cstring(b, heap);
+    REQUIRE_MESSAGE(cstr != nullptr, "allocated");
+    CHECK_MESSAGE(std::strcmp(cstr, "hi") == 0, "NUL-terminated copy");
+    CHECK_MESSAGE(cstr[2] == '\0', "NUL at len");
+    heap.free(cstr, ingot::ssb_len(b) + 1);
+}
