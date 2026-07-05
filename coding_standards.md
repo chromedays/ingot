@@ -103,7 +103,6 @@ log_info("Base directory initialized: {}", absolute_path::base_directory.string(
 
 ## 6. 테스트 파일 네이밍
 - 공식 CTest 그래프에 등록된 소스만 `test_*.cpp` 이름을 사용합니다.
-- 실험용/환경 점검용 소스는 `probe_*.cpp` 이름을 사용합니다.
 
 ## 7. 언어 규칙
 - **식별자 언어**: 영어
@@ -143,4 +142,4 @@ log_info("Base directory initialized: {}", absolute_path::base_directory.string(
 - 접두사 축약 사용 시 타입별 축약형이 일관되지 않음
 - POD 타입에 대해 `static_assert`로 `std::is_trivial`/`std::is_standard_layout` 검증이 빠짐
 - 즉시 종료 상황에서 `ingot_assert_` 매크로 대신 다른 방식 사용
-- 공식 테스트 소스가 `test_*.cpp`가 아님, 실험용 소스가 `probe_*.cpp`가 아님
+- 공식 테스트 소스가 `test_*.cpp`가 아님
