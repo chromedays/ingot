@@ -281,3 +281,68 @@ TEST_CASE("static_string_builder_t: to_cstring") {
     CHECK_MESSAGE(cstr[2] == '\0', "NUL at len");
     heap.free(cstr, ingot::ssb_len(b) + 1);
 }
+
+TEST_CASE("utf8: decode ASCII") {
+    const char* s = "A";
+    int width = 0;
+    char32_t r = ingot::utf8_decode_rune(s, 1, &width);
+    CHECK_MESSAGE(r == U'A', "ASCII codepoint");
+    CHECK_MESSAGE(width == 1, "ASCII width 1");
+}
+
+TEST_CASE("utf8: decode multibyte") {
+    const char* s = "\xEC\x84\xB8";  // 세 (U+C138)
+    int width = 0;
+    char32_t r = ingot::utf8_decode_rune(s, 3, &width);
+    CHECK_MESSAGE(r == 0xC138, "Korean syllable 세");
+    CHECK_MESSAGE(width == 3, "3-byte width");
+}
+
+TEST_CASE("utf8: decode invalid byte") {
+    const char* s = "\xFF";
+    int width = 0;
+    char32_t r = ingot::utf8_decode_rune(s, 1, &width);
+    CHECK_MESSAGE(r == ingot::utf8_rune_error, "invalid -> U+FFFD");
+    CHECK_MESSAGE(width == 1, "advance 1 byte");
+}
+
+TEST_CASE("utf8: encode roundtrip") {
+    char32_t runes[] = {U'A', 0xC138, U'\U0001F600'};  // A, 세, 😀
+    for (char32_t r : runes) {
+        char buf[4] = {0, 0, 0, 0};
+        int width = ingot::utf8_encode_rune(r, buf);
+        CHECK_MESSAGE(width > 0, "valid rune encodes");
+        int dwidth = 0;
+        char32_t back = ingot::utf8_decode_rune(buf, 4, &dwidth);
+        CHECK_MESSAGE(back == r, "roundtrip preserves codepoint");
+        CHECK_MESSAGE(dwidth == width, "roundtrip preserves width");
+    }
+}
+
+TEST_CASE("utf8: encode invalid rune returns 0") {
+    char buf[4] = {0, 0, 0, 0};
+    int width = ingot::utf8_encode_rune(0x110000, buf);  // out of range
+    CHECK_MESSAGE(width == 0, "out-of-range rejected");
+    width = ingot::utf8_encode_rune(0xD800, buf);  // surrogate
+    CHECK_MESSAGE(width == 0, "surrogate rejected");
+}
+
+TEST_CASE("utf8: validate") {
+    CHECK_MESSAGE(ingot::utf8_validate(ingot::str_from_cstr("hello")), "ASCII valid");
+    CHECK_MESSAGE(ingot::utf8_validate(ingot::str_from_cstr("Hello, 세계")), "multibyte valid");
+    CHECK_MESSAGE(ingot::utf8_validate(ingot::str_from("", 0)), "empty valid");
+
+    const char* bad = "\xFF\xFE";
+    CHECK_MESSAGE(!ingot::utf8_validate(ingot::str_from(bad, 2)), "invalid bytes rejected");
+
+    const char* truncated = "\xEC\x84";  // 3바이트 시퀀스인데 2바이트만
+    CHECK_MESSAGE(!ingot::utf8_validate(ingot::str_from(truncated, 2)), "truncated rejected");
+}
+
+TEST_CASE("utf8: rune_count") {
+    CHECK_MESSAGE(ingot::utf8_rune_count(ingot::str_from_cstr("abc")) == 3, "ASCII 3 runes");
+    CHECK_MESSAGE(ingot::utf8_rune_count(ingot::str_from_cstr("세계")) == 2, "2 Korean runes");
+    CHECK_MESSAGE(ingot::utf8_rune_count(ingot::str_from_cstr("Hello, 세계")) == 9,
+                  "mixed ASCII + multibyte");
+    CHECK_MESSAGE(ingot::utf8_rune_count(ingot::str_from("", 0)) == 0, "empty 0 runes");
+}

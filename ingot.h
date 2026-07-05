@@ -373,6 +373,15 @@ inline char* ssb_to_cstring(const static_string_builder_t<N>& b, allocator_t& al
     return out;
 }
 
+// === UTF-8 헬퍼 (옵션) ===
+
+inline constexpr char32_t utf8_rune_error = 0xFFFD;
+
+char32_t utf8_decode_rune(const char* p, int64_t remaining, int* out_width);
+int     utf8_encode_rune(char32_t rune, char* out_buf);
+bool    utf8_validate(string_t s);
+int64_t utf8_rune_count(string_t s);
+
 } // namespace ingot
 
 #endif // INGOT_H_

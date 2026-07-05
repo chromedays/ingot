@@ -179,4 +179,108 @@ bool str_equal(string_t a, string_t b) {
     return std::memcmp(a.data, b.data, static_cast<size_t>(a.len)) == 0;
 }
 
+char32_t utf8_decode_rune(const char* p, int64_t remaining, int* out_width) {
+    ingot_assert_(remaining > 0, "utf8_decode_rune: remaining <= 0");
+    ingot_assert_(out_width != nullptr, "utf8_decode_rune: null out_width");
+    unsigned char b0 = static_cast<unsigned char>(p[0]);
+
+    if (b0 < 0x80) {
+        *out_width = 1;
+        return static_cast<char32_t>(b0);
+    }
+    if ((b0 & 0xC0) == 0x80) {
+        *out_width = 1;
+        return utf8_rune_error;
+    }
+
+    int      width;
+    char32_t code;
+    char32_t min;
+    if ((b0 & 0xE0) == 0xC0) {
+        width = 2; code = b0 & 0x1F; min = 0x80;
+    } else if ((b0 & 0xF0) == 0xE0) {
+        width = 3; code = b0 & 0x0F; min = 0x800;
+    } else if ((b0 & 0xF8) == 0xF0) {
+        width = 4; code = b0 & 0x07; min = 0x10000;
+    } else {
+        *out_width = 1;
+        return utf8_rune_error;
+    }
+
+    if (remaining < width) {
+        *out_width = 1;
+        return utf8_rune_error;
+    }
+    for (int i = 1; i < width; ++i) {
+        unsigned char bi = static_cast<unsigned char>(p[i]);
+        if ((bi & 0xC0) != 0x80) {
+            *out_width = 1;
+            return utf8_rune_error;
+        }
+        code = (code << 6) | static_cast<char32_t>(bi & 0x3F);
+    }
+    if (code < min || code > 0x10FFFF || (code >= 0xD800 && code <= 0xDFFF)) {
+        *out_width = 1;
+        return utf8_rune_error;
+    }
+    *out_width = width;
+    return code;
+}
+
+int utf8_encode_rune(char32_t rune, char* out_buf) {
+    ingot_assert_(out_buf != nullptr, "utf8_encode_rune: null out_buf");
+    if (rune > 0x10FFFF || (rune >= 0xD800 && rune <= 0xDFFF)) {
+        return 0;
+    }
+    if (rune < 0x80) {
+        out_buf[0] = static_cast<char>(rune);
+        return 1;
+    }
+    if (rune < 0x800) {
+        out_buf[0] = static_cast<char>(0xC0 | (rune >> 6));
+        out_buf[1] = static_cast<char>(0x80 | (rune & 0x3F));
+        return 2;
+    }
+    if (rune < 0x10000) {
+        out_buf[0] = static_cast<char>(0xE0 | (rune >> 12));
+        out_buf[1] = static_cast<char>(0x80 | ((rune >> 6) & 0x3F));
+        out_buf[2] = static_cast<char>(0x80 | (rune & 0x3F));
+        return 3;
+    }
+    out_buf[0] = static_cast<char>(0xF0 | (rune >> 18));
+    out_buf[1] = static_cast<char>(0x80 | ((rune >> 12) & 0x3F));
+    out_buf[2] = static_cast<char>(0x80 | ((rune >> 6) & 0x3F));
+    out_buf[3] = static_cast<char>(0x80 | (rune & 0x3F));
+    return 4;
+}
+
+bool utf8_validate(string_t s) {
+    const char* p = s.data;
+    int64_t     remaining = s.len;
+    while (remaining > 0) {
+        int      width;
+        char32_t r = utf8_decode_rune(p, remaining, &width);
+        if (r == utf8_rune_error && width == 1) {
+            return false;
+        }
+        p += width;
+        remaining -= width;
+    }
+    return true;
+}
+
+int64_t utf8_rune_count(string_t s) {
+    const char* p = s.data;
+    int64_t     remaining = s.len;
+    int64_t     count = 0;
+    while (remaining > 0) {
+        int width;
+        utf8_decode_rune(p, remaining, &width);
+        p += width;
+        remaining -= width;
+        count++;
+    }
+    return count;
+}
+
 } // namespace ingot
