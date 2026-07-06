@@ -21,6 +21,10 @@
 
 namespace ingot {
 
+template<typename T>
+inline constexpr bool is_pod = std::is_trivially_copyable_v<T> &&
+                               std::is_standard_layout_v<T>;
+
 class allocator_t {
 public:
     virtual void* alloc(int64_t bytes, int64_t align) = 0;
@@ -52,7 +56,7 @@ public:
 
 template<typename T>
 struct static_vector_t {
-    static_assert(std::is_trivially_copyable_v<T> && std::is_standard_layout_v<T>,
+    static_assert(is_pod<T>,
                   "static_vector_t requires POD types");
 
     T*           data;
@@ -169,7 +173,7 @@ struct string_t {
     const char* data;
     int64_t     len;
 };
-static_assert(std::is_trivially_copyable_v<string_t> && std::is_standard_layout_v<string_t>,
+static_assert(is_pod<string_t>,
               "string_t must be POD");
 
 inline string_t str_from(const char* data, int64_t len) {
@@ -222,7 +226,7 @@ struct string_builder_t {
     int64_t      capacity;
     allocator_t* alloc;
 };
-static_assert(std::is_trivially_copyable_v<string_builder_t> && std::is_standard_layout_v<string_builder_t>,
+static_assert(is_pod<string_builder_t>,
               "string_builder_t must be POD");
 
 void sb_create(string_builder_t& b, allocator_t& a, int64_t initial_capacity);
@@ -274,8 +278,7 @@ struct static_string_builder_t {
     char    buffer[N];
     int64_t len;
 };
-static_assert(std::is_trivially_copyable_v<static_string_builder_t<16>> &&
-              std::is_standard_layout_v<static_string_builder_t<16>>,
+static_assert(is_pod<static_string_builder_t<16>>,
               "static_string_builder_t must be POD");
 
 template <int64_t N>
@@ -388,8 +391,7 @@ int64_t utf8_rune_count(string_t s);
 struct utf8_rune_view_t {
     string_t source;
 };
-static_assert(std::is_trivially_copyable_v<utf8_rune_view_t> &&
-              std::is_standard_layout_v<utf8_rune_view_t>,
+static_assert(is_pod<utf8_rune_view_t>,
               "utf8_rune_view_t must be POD");
 
 struct utf8_rune_cursor_t {
@@ -398,8 +400,7 @@ struct utf8_rune_cursor_t {
     char32_t    current;
     int         width;
 };
-static_assert(std::is_trivially_copyable_v<utf8_rune_cursor_t> &&
-              std::is_standard_layout_v<utf8_rune_cursor_t>,
+static_assert(is_pod<utf8_rune_cursor_t>,
               "utf8_rune_cursor_t must be POD");
 
 inline utf8_rune_view_t utf8_runes(string_t s) {
