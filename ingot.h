@@ -167,6 +167,99 @@ bool sv_full(const static_vector_t<T>& v) {
     return v.count >= v.capacity;
 }
 
+// === 뷰 타입 ===
+
+template<typename T>
+struct view_t {
+    static_assert(std::is_trivially_copyable_v<T> && std::is_standard_layout_v<T>,
+                  "view_t<T> requires POD types");
+
+    T*      data;
+    int64_t len;
+};
+static_assert(std::is_trivially_copyable_v<view_t<int>> &&
+              std::is_standard_layout_v<view_t<int>>,
+              "view_t must be POD");
+
+template<typename T>
+view_t<T> view_from(T* data, int64_t len) {
+    ingot_assert_(len >= 0, "view_from: negative length (len=%lld)",
+                  static_cast<long long>(len));
+    ingot_assert_(data != nullptr || len == 0,
+                  "view_from: null data with non-zero length (len=%lld)",
+                  static_cast<long long>(len));
+    return view_t<T>{.data = data, .len = len};
+}
+
+template<typename T, int64_t N>
+view_t<T> view_from(T (&arr)[N]) {
+    return view_t<T>{.data = arr, .len = N};
+}
+
+template<typename T>
+view_t<T> view_from(static_vector_t<T>& sv) {
+    return view_t<T>{.data = sv.data, .len = sv.count};
+}
+
+template<typename T>
+view_t<const T> view_from(const static_vector_t<T>& sv) {
+    return view_t<const T>{.data = sv.data, .len = sv.count};
+}
+
+template<typename T>
+int64_t view_len(view_t<T> v) {
+    return v.len;
+}
+
+template<typename T>
+bool view_is_empty(view_t<T> v) {
+    return v.len == 0;
+}
+
+template<typename T>
+T* view_data(view_t<T> v) {
+    return v.data;
+}
+
+template<typename T>
+T& view_at(view_t<T> v, int64_t index) {
+    ingot_assert_(index >= 0 && index < v.len,
+                  "view_at: index out of range (index=%lld, len=%lld)",
+                  static_cast<long long>(index),
+                  static_cast<long long>(v.len));
+    return v.data[index];
+}
+
+template<typename T>
+view_t<T> view_slice(view_t<T> v, int64_t low, int64_t high) {
+    ingot_assert_(low >= 0 && high >= low && high <= v.len,
+                  "view_slice: invalid range (low=%lld, high=%lld, len=%lld)",
+                  static_cast<long long>(low),
+                  static_cast<long long>(high),
+                  static_cast<long long>(v.len));
+    return view_t<T>{.data = v.data + low, .len = high - low};
+}
+
+template<typename T>
+T* view_begin(view_t<T> v) {
+    return v.data;
+}
+
+template<typename T>
+T* view_end(view_t<T> v) {
+    return v.data + v.len;
+}
+
+template<typename T>
+T* begin(view_t<T> v) {
+    return view_begin(v);
+}
+
+template<typename T>
+T* end(view_t<T> v) {
+    return view_end(v);
+}
+
 // === 스트링 타입 ===
 
 struct string_t {

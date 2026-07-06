@@ -21,10 +21,6 @@
   const int max_attempts = 3;
   ```
 - **함수는 자유 함수(free function)가 원칙**: 클래스/구조체는 데이터 전용(POD-like)이며, 동작은 자유 함수로 구현합니다. 멤버 함수는 문법적으로 불가피한 경우(예: operator 오버로딩)에만 예외적으로 허용합니다.
-- **자유 함수 네이밍**: `verb_noun` 형태의 `snake_case`
-  ```cpp
-  void render_frame(int frame_index);
-  ```
 - **주체를 첫 인자로**: 타입에 대한 동작은 해당 타입의 참조/포인터를 첫 번째 인자로 받습니다.
   ```cpp
   void window_render(window_t& win, float dt);
@@ -145,7 +141,6 @@ log_info("Base directory initialized: {}", absolute_path::base_directory.string(
 - `enum class` 사용 (일반 `enum`이 규칙)
 - 열거값에 열거형 이름 접두사가 빠짐 (예: `ply_error_invalid_header`가 아닌 `invalid_header`)
 - 자유 함수가 아닌 멤버 함수 (operator 오버로딩 예외 제외)
-- 자유 함수가 `verb_noun` 형태가 아님
 - 타입에 대한 동작 함수가 주체를 첫 인자로 받지 않음
 - 타입/모듈 결속 자유 함수가 해당 이름 접두사(`_t` 제외)로 시작하지 않음
 - `std::fprintf(stderr, ...)` / `printf(...)`를 직접 사용한 로깅
