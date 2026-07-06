@@ -259,10 +259,10 @@ inline void sb_pop(string_builder_t& b) {
     b.len--;
 }
 
-void sb_append_char(string_builder_t& b, char c);
 void sb_append_bytes(string_builder_t& b, const char* p, int64_t n);
-void sb_append_cstr(string_builder_t& b, const char* s);
-void sb_append_view(string_builder_t& b, string_t v);
+void sb_append(string_builder_t& b, char c);
+void sb_append(string_builder_t& b, const char* s);
+void sb_append(string_builder_t& b, string_t v);
 void sb_reserve(string_builder_t& b, int64_t total_capacity);
 char* sb_to_cstring(const string_builder_t& b, allocator_t& alloc);
 
@@ -324,22 +324,22 @@ inline void ssb_append_bytes(static_string_builder_t<N>& b, const char* p, int64
 }
 
 template <int64_t N>
-inline void ssb_append_char(static_string_builder_t<N>& b, char c) {
+inline void ssb_append(static_string_builder_t<N>& b, char c) {
     ingot_assert_(b.len < N,
-                  "ssb_append_char: overflow (len=%lld, capacity=%lld)",
+                  "ssb_append: overflow (char) (len=%lld, capacity=%lld)",
                   static_cast<long long>(b.len), static_cast<long long>(N));
     b.buffer[b.len] = c;
     b.len++;
 }
 
 template <int64_t N>
-inline void ssb_append_cstr(static_string_builder_t<N>& b, const char* s) {
-    ingot_assert_(s != nullptr, "ssb_append_cstr: null pointer");
+inline void ssb_append(static_string_builder_t<N>& b, const char* s) {
+    ingot_assert_(s != nullptr, "ssb_append: null pointer");
     ssb_append_bytes(b, s, static_cast<int64_t>(std::strlen(s)));
 }
 
 template <int64_t N>
-inline void ssb_append_view(static_string_builder_t<N>& b, string_t v) {
+inline void ssb_append(static_string_builder_t<N>& b, string_t v) {
     ssb_append_bytes(b, v.data, v.len);
 }
 

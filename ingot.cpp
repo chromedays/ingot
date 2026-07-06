@@ -137,18 +137,18 @@ void sb_append_bytes(string_builder_t& b, const char* p, int64_t n) {
     b.len += n;
 }
 
-void sb_append_char(string_builder_t& b, char c) {
+void sb_append(string_builder_t& b, char c) {
     sb_ensure_capacity(b, b.len + 1);
     b.data[b.len] = c;
     b.len++;
 }
 
-void sb_append_cstr(string_builder_t& b, const char* s) {
-    ingot_assert_(s != nullptr, "sb_append_cstr: null pointer");
+void sb_append(string_builder_t& b, const char* s) {
+    ingot_assert_(s != nullptr, "sb_append: null pointer");
     sb_append_bytes(b, s, static_cast<int64_t>(std::strlen(s)));
 }
 
-void sb_append_view(string_builder_t& b, string_t v) {
+void sb_append(string_builder_t& b, string_t v) {
     sb_append_bytes(b, v.data, v.len);
 }
 

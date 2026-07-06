@@ -114,17 +114,17 @@ TEST_CASE("string_builder_t: append_char and growth") {
     int64_t cap_before = ingot::sb_capacity(b);
     CHECK_MESSAGE(cap_before == 2, "initial capacity 2");
 
-    ingot::sb_append_char(b, 'a');
-    ingot::sb_append_char(b, 'b');
+    ingot::sb_append(b, 'a');
+    ingot::sb_append(b, 'b');
     CHECK_MESSAGE(ingot::sb_len(b) == 2, "len 2, still fits");
     CHECK_MESSAGE(ingot::sb_capacity(b) == 2, "no growth yet");
 
-    ingot::sb_append_char(b, 'c');
+    ingot::sb_append(b, 'c');
     CHECK_MESSAGE(ingot::sb_len(b) == 3, "len 3 after overflow append");
     CHECK_MESSAGE(ingot::sb_capacity(b) >= 3, "capacity grew");
     CHECK_MESSAGE(ingot::sb_capacity(b) >= cap_before * 2, "at least doubled");
 
-    ingot::sb_append_char(b, 'd');
+    ingot::sb_append(b, 'd');
     CHECK_MESSAGE(b.data[0] == 'a', "byte[0] preserved");
     CHECK_MESSAGE(b.data[1] == 'b', "byte[1] preserved");
     CHECK_MESSAGE(b.data[2] == 'c', "byte[2] preserved");
@@ -137,8 +137,8 @@ TEST_CASE("string_builder_t: append_cstr/bytes/view") {
     ingot::string_builder_t b;
     ingot::sb_create(b, heap, 0);
 
-    ingot::sb_append_cstr(b, "hello, ");
-    ingot::sb_append_view(b, ingot::str_from_cstr("world"));
+    ingot::sb_append(b, "hello, ");
+    ingot::sb_append(b, ingot::str_from_cstr("world"));
     ingot::sb_append_bytes(b, "!", 1);
 
     CHECK_MESSAGE(ingot::sb_len(b) == 13, "total len");
@@ -163,7 +163,7 @@ TEST_CASE("string_builder_t: clear/truncate/pop") {
     ingot::heap_allocator_t heap;
     ingot::string_builder_t b;
     ingot::sb_create(b, heap, 16);
-    ingot::sb_append_cstr(b, "hello");
+    ingot::sb_append(b, "hello");
     int64_t cap = ingot::sb_capacity(b);
 
     ingot::sb_truncate(b, 3);
@@ -184,7 +184,7 @@ TEST_CASE("string_builder_t: at and mutable data") {
     ingot::heap_allocator_t heap;
     ingot::string_builder_t b;
     ingot::sb_create(b, heap, 8);
-    ingot::sb_append_cstr(b, "abc");
+    ingot::sb_append(b, "abc");
     CHECK_MESSAGE(ingot::sb_at(b, 1) == 'b', "at 1");
     ingot::sb_data(b)[0] = 'A';
     CHECK_MESSAGE(ingot::sb_at(b, 0) == 'A', "mutable data write");
@@ -195,7 +195,7 @@ TEST_CASE("string_builder_t: to_cstring") {
     ingot::heap_allocator_t heap;
     ingot::string_builder_t b;
     ingot::sb_create(b, heap, 0);
-    ingot::sb_append_cstr(b, "hello");
+    ingot::sb_append(b, "hello");
 
     char* cstr = ingot::sb_to_cstring(b, heap);
     REQUIRE_MESSAGE(cstr != nullptr, "to_cstring should allocate");
@@ -223,7 +223,7 @@ TEST_CASE("static_string_builder_t: create and append") {
     CHECK_MESSAGE(ingot::ssb_len(b) == 0, "len 0 after create");
     CHECK_MESSAGE(ingot::ssb_is_empty(b), "empty");
 
-    ingot::ssb_append_cstr(b, "hello");
+    ingot::ssb_append(b, "hello");
     CHECK_MESSAGE(ingot::ssb_len(b) == 5, "len 5");
     CHECK_MESSAGE(ingot::str_equal(ingot::ssb_to_string(b), ingot::str_from_cstr("hello")),
                   "contents");
@@ -234,9 +234,9 @@ TEST_CASE("static_string_builder_t: is_full and remaining") {
     ingot::static_string_builder_t<3> b;
     ingot::ssb_create(b);
     CHECK_MESSAGE(!ingot::ssb_is_full(b), "not full initially");
-    ingot::ssb_append_char(b, 'a');
-    ingot::ssb_append_char(b, 'b');
-    ingot::ssb_append_char(b, 'c');
+    ingot::ssb_append(b, 'a');
+    ingot::ssb_append(b, 'b');
+    ingot::ssb_append(b, 'c');
     CHECK_MESSAGE(ingot::ssb_is_full(b), "full at N");
     CHECK_MESSAGE(ingot::ssb_len(b) == 3, "len == N");
 }
@@ -244,7 +244,7 @@ TEST_CASE("static_string_builder_t: is_full and remaining") {
 TEST_CASE("static_string_builder_t: append_view/bytes") {
     ingot::static_string_builder_t<32> b;
     ingot::ssb_create(b);
-    ingot::ssb_append_view(b, ingot::str_from_cstr("foo"));
+    ingot::ssb_append(b, ingot::str_from_cstr("foo"));
     ingot::ssb_append_bytes(b, "bar", 3);
     CHECK_MESSAGE(ingot::str_equal(ingot::ssb_to_string(b), ingot::str_from_cstr("foobar")),
                   "assembled");
@@ -253,7 +253,7 @@ TEST_CASE("static_string_builder_t: append_view/bytes") {
 TEST_CASE("static_string_builder_t: clear/truncate/pop/at") {
     ingot::static_string_builder_t<16> b;
     ingot::ssb_create(b);
-    ingot::ssb_append_cstr(b, "hello");
+    ingot::ssb_append(b, "hello");
 
     CHECK_MESSAGE(ingot::ssb_at(b, 0) == 'h', "at 0");
     CHECK_MESSAGE(ingot::ssb_at(b, 4) == 'o', "at 4");
@@ -272,7 +272,7 @@ TEST_CASE("static_string_builder_t: clear/truncate/pop/at") {
 TEST_CASE("static_string_builder_t: to_cstring") {
     ingot::static_string_builder_t<16> b;
     ingot::ssb_create(b);
-    ingot::ssb_append_cstr(b, "hi");
+    ingot::ssb_append(b, "hi");
 
     ingot::heap_allocator_t heap;
     char* cstr = ingot::ssb_to_cstring(b, heap);
