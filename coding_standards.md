@@ -49,6 +49,21 @@
   void sv_push(static_vector_t<int>& v, const int& value);
   int64_t sv_count(const static_vector_t<int>& v);
   ```
+- **함수 오버로딩 권장**: 동일한 의미의 연산에 대해 인자 타입만 다른 경우, 이름을 다르게 짓기보다 **함수 오버로딩(function overloading)**을 적극적으로 사용하십시오. API 일관성과 사용성이 향상됩니다. 단, 인자 개수/의미가 다른 경우(예: 원시 바이트 + 길이)는 접미사 구분이 허용됩니다.
+  ```cpp
+  // BAD: 인자 타입마다 이름을 다르게 지음
+  void sb_append_char(string_builder_t& b, char c);
+  void sb_append_cstr(string_builder_t& b, const char* s);
+  void sb_append_view(string_builder_t& b, string_t v);
+
+  // GOOD: 동일한 이름으로 오버로딩
+  void sb_append(string_builder_t& b, char c);
+  void sb_append(string_builder_t& b, const char* s);   // strlen 포함
+  void sb_append(string_builder_t& b, string_t v);
+
+  // 예외: 인자 개수/의미가 다르면 접미사 허용
+  void sb_append_bytes(string_builder_t& b, const char* p, int64_t n);  // 원시 바이트 + 길이
+  ```
 - **operator 오버로딩 예외**: 문법상 멤버 함수만 허용되는 경우에 한해 멤버 함수를 둘 수 있습니다.
   ```cpp
   struct vec2_t {
@@ -140,6 +155,7 @@ log_info("Base directory initialized: {}", absolute_path::base_directory.string(
 - 순수 스타일/구조 변경에 동작 수정이 섞여 있음
 - `throw`/`try-catch` 구문 사용
 - 접두사 축약 사용 시 타입별 축약형이 일관되지 않음
+- 동일한 의미의 연산을 오버로딩하지 않고 인자 타입별로 이름을 다르게 지음 (예: `sb_append_char`/`sb_append_cstr`/`sb_append_view` 대신 `sb_append` 오버로딩). 단, 인자 개수/의미가 다른 경우(예: `sb_append_bytes`)는 접미사 허용
 - POD 타입에 대해 `static_assert`로 `std::is_trivial`/`std::is_standard_layout` 검증이 빠짐
 - 즉시 종료 상황에서 `ingot_assert_` 매크로 대신 다른 방식 사용
 - 공식 테스트 소스가 `test_*.cpp`가 아님
