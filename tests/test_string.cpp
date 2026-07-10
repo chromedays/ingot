@@ -406,3 +406,336 @@ TEST_CASE("utf8_rune_view: invalid byte yields replacement") {
     CHECK_MESSAGE(count == 2, "2 runes (1 invalid + 1 valid)");
     CHECK_MESSAGE(first == ingot::utf8_rune_error, "invalid byte -> U+FFFD");
 }
+
+// === sb_format / ssb_format ===
+
+TEST_CASE("sb_format: basic integer") {
+    ingot::heap_allocator_t heap;
+    ingot::string_builder_t b;
+    ingot::sb_create(b, heap, 0);
+
+    ingot::sb_format(b, ingot::str_lit("{}"), 42);
+    CHECK_MESSAGE(ingot::str_equal(ingot::sb_to_string(b), ingot::str_from_cstr("42")),
+                  "42");
+
+    ingot::sb_clear(b);
+    ingot::sb_format(b, ingot::str_lit("{}"), 0);
+    CHECK_MESSAGE(ingot::str_equal(ingot::sb_to_string(b), ingot::str_from_cstr("0")),
+                  "0");
+
+    ingot::sb_clear(b);
+    ingot::sb_format(b, ingot::str_lit("{}"), -7);
+    CHECK_MESSAGE(ingot::str_equal(ingot::sb_to_string(b), ingot::str_from_cstr("-7")),
+                  "-7");
+
+    ingot::sb_destroy(b);
+}
+
+TEST_CASE("sb_format: large integers") {
+    ingot::heap_allocator_t heap;
+    ingot::string_builder_t b;
+    ingot::sb_create(b, heap, 0);
+
+    ingot::sb_format(b, ingot::str_lit("{}"), INT64_MAX);
+    CHECK_MESSAGE(ingot::str_equal(ingot::sb_to_string(b),
+                                   ingot::str_from_cstr("9223372036854775807")),
+                  "INT64_MAX");
+
+    ingot::sb_clear(b);
+    ingot::sb_format(b, ingot::str_lit("{}"), INT64_MIN);
+    CHECK_MESSAGE(ingot::str_equal(ingot::sb_to_string(b),
+                                   ingot::str_from_cstr("-9223372036854775808")),
+                  "INT64_MIN");
+
+    ingot::sb_destroy(b);
+}
+
+TEST_CASE("sb_format: unsigned integer") {
+    ingot::heap_allocator_t heap;
+    ingot::string_builder_t b;
+    ingot::sb_create(b, heap, 0);
+
+    ingot::sb_format(b, ingot::str_lit("{}"), 42u);
+    CHECK_MESSAGE(ingot::str_equal(ingot::sb_to_string(b), ingot::str_from_cstr("42")),
+                  "unsigned 42");
+
+    ingot::sb_clear(b);
+    uint64_t big = UINT64_MAX;
+    ingot::sb_format(b, ingot::str_lit("{}"), big);
+    CHECK_MESSAGE(ingot::str_equal(ingot::sb_to_string(b),
+                                   ingot::str_from_cstr("18446744073709551615")),
+                  "UINT64_MAX");
+
+    ingot::sb_destroy(b);
+}
+
+TEST_CASE("sb_format: string_t") {
+    ingot::heap_allocator_t heap;
+    ingot::string_builder_t b;
+    ingot::sb_create(b, heap, 0);
+
+    ingot::string_t name = ingot::str_from_cstr("world");
+    ingot::sb_format(b, ingot::str_lit("hello, {}"), name);
+    CHECK_MESSAGE(ingot::str_equal(ingot::sb_to_string(b),
+                                   ingot::str_from_cstr("hello, world")),
+                  "string_t arg");
+
+    ingot::sb_destroy(b);
+}
+
+TEST_CASE("sb_format: const char*") {
+    ingot::heap_allocator_t heap;
+    ingot::string_builder_t b;
+    ingot::sb_create(b, heap, 0);
+
+    ingot::sb_format(b, ingot::str_lit("{}, {}!"), "hello", "world");
+    CHECK_MESSAGE(ingot::str_equal(ingot::sb_to_string(b),
+                                   ingot::str_from_cstr("hello, world!")),
+                  "const char* args");
+
+    ingot::sb_destroy(b);
+}
+
+TEST_CASE("sb_format: char") {
+    ingot::heap_allocator_t heap;
+    ingot::string_builder_t b;
+    ingot::sb_create(b, heap, 0);
+
+    ingot::sb_format(b, ingot::str_lit("{}"), 'X');
+    CHECK_MESSAGE(ingot::str_equal(ingot::sb_to_string(b), ingot::str_from_cstr("X")),
+                  "char arg");
+
+    ingot::sb_destroy(b);
+}
+
+TEST_CASE("sb_format: bool") {
+    ingot::heap_allocator_t heap;
+    ingot::string_builder_t b;
+    ingot::sb_create(b, heap, 0);
+
+    ingot::sb_format(b, ingot::str_lit("{}"), true);
+    CHECK_MESSAGE(ingot::str_equal(ingot::sb_to_string(b), ingot::str_from_cstr("true")),
+                  "true");
+
+    ingot::sb_clear(b);
+    ingot::sb_format(b, ingot::str_lit("{}"), false);
+    CHECK_MESSAGE(ingot::str_equal(ingot::sb_to_string(b), ingot::str_from_cstr("false")),
+                  "false");
+
+    ingot::sb_destroy(b);
+}
+
+TEST_CASE("sb_format: float") {
+    ingot::heap_allocator_t heap;
+    ingot::string_builder_t b;
+    ingot::sb_create(b, heap, 0);
+
+    ingot::sb_format(b, ingot::str_lit("{}"), 3.14);
+    CHECK_MESSAGE(ingot::str_len(ingot::sb_to_string(b)) > 0,
+                  "float produces non-empty output");
+
+    // %g format: check prefix to avoid locale-dependent decimal separator issues
+    ingot::string_t result = ingot::sb_to_string(b);
+    CHECK_MESSAGE(result.data[0] == '3', "float starts with 3");
+
+    ingot::sb_destroy(b);
+}
+
+TEST_CASE("sb_format: double") {
+    ingot::heap_allocator_t heap;
+    ingot::string_builder_t b;
+    ingot::sb_create(b, heap, 0);
+
+    double val = 2.5;
+    ingot::sb_format(b, ingot::str_lit("{}"), val);
+    ingot::string_t result = ingot::sb_to_string(b);
+    CHECK_MESSAGE(result.data[0] == '2', "double starts with 2");
+    CHECK_MESSAGE(ingot::str_len(result) > 0, "double non-empty");
+
+    ingot::sb_destroy(b);
+}
+
+TEST_CASE("sb_format: char32_t") {
+    ingot::heap_allocator_t heap;
+    ingot::string_builder_t b;
+    ingot::sb_create(b, heap, 0);
+
+    ingot::sb_format(b, ingot::str_lit("{}"), U'A');
+    CHECK_MESSAGE(ingot::str_equal(ingot::sb_to_string(b), ingot::str_from_cstr("A")),
+                  "ASCII rune");
+
+    ingot::sb_clear(b);
+    // 한 (U+D55C) = 3 bytes in UTF-8
+    ingot::sb_format(b, ingot::str_lit("{}"), U'한');
+    CHECK_MESSAGE(ingot::str_len(ingot::sb_to_string(b)) == 3,
+                  "Korean rune is 3 bytes");
+
+    ingot::sb_destroy(b);
+}
+
+TEST_CASE("sb_format: multiple placeholders mixed types") {
+    ingot::heap_allocator_t heap;
+    ingot::string_builder_t b;
+    ingot::sb_create(b, heap, 0);
+
+    ingot::sb_format(b, ingot::str_lit("{} + {} = {}"), 1, 2, 3);
+    CHECK_MESSAGE(ingot::str_equal(ingot::sb_to_string(b),
+                                   ingot::str_from_cstr("1 + 2 = 3")),
+                  "three ints");
+
+    ingot::sb_clear(b);
+    ingot::sb_format(b, ingot::str_lit("int={} str={} bool={}"), 42,
+                      ingot::str_lit("hi"), true);
+    CHECK_MESSAGE(ingot::str_equal(ingot::sb_to_string(b),
+                                   ingot::str_from_cstr("int=42 str=hi bool=true")),
+                  "mixed types");
+
+    ingot::sb_destroy(b);
+}
+
+TEST_CASE("sb_format: escaped braces") {
+    ingot::heap_allocator_t heap;
+    ingot::string_builder_t b;
+    ingot::sb_create(b, heap, 0);
+
+    ingot::sb_format(b, ingot::str_lit("{{}}"));
+    CHECK_MESSAGE(ingot::str_equal(ingot::sb_to_string(b), ingot::str_from_cstr("{}")),
+                  "escaped {{}}");
+
+    ingot::sb_clear(b);
+    ingot::sb_format(b, ingot::str_lit("{{hello}}"));
+    CHECK_MESSAGE(ingot::str_equal(ingot::sb_to_string(b), ingot::str_from_cstr("{hello}")),
+                  "escaped {{ and }}");
+
+    ingot::sb_clear(b);
+    ingot::sb_format(b, ingot::str_lit("pre {{}}, post"));
+    CHECK_MESSAGE(ingot::str_equal(ingot::sb_to_string(b),
+                                   ingot::str_from_cstr("pre {}, post")),
+                  "escaped in middle of text");
+
+    ingot::sb_destroy(b);
+}
+
+TEST_CASE("sb_format: no placeholders") {
+    ingot::heap_allocator_t heap;
+    ingot::string_builder_t b;
+    ingot::sb_create(b, heap, 0);
+
+    ingot::sb_format(b, ingot::str_lit("hello world"));
+    CHECK_MESSAGE(ingot::str_equal(ingot::sb_to_string(b),
+                                   ingot::str_from_cstr("hello world")),
+                  "no placeholders passthrough");
+
+    ingot::sb_clear(b);
+    ingot::sb_format(b, ingot::str_from("", 0));
+    CHECK_MESSAGE(ingot::str_is_empty(ingot::sb_to_string(b)),
+                  "empty format string");
+
+    ingot::sb_destroy(b);
+}
+
+TEST_CASE("sb_format: append to non-empty builder") {
+    ingot::heap_allocator_t heap;
+    ingot::string_builder_t b;
+    ingot::sb_create(b, heap, 0);
+
+    ingot::sb_append(b, ingot::str_from_cstr("start:"));
+    ingot::sb_format(b, ingot::str_lit(" {}"), 99);
+    CHECK_MESSAGE(ingot::str_equal(ingot::sb_to_string(b),
+                                   ingot::str_from_cstr("start: 99")),
+                  "append to existing content");
+
+    ingot::sb_destroy(b);
+}
+
+// --- ssb_format ---
+
+TEST_CASE("ssb_format: basic") {
+    ingot::static_string_builder_t<128> b;
+    ingot::ssb_create(b);
+
+    ingot::ssb_format(b, ingot::str_lit("answer={}"), 42);
+    CHECK_MESSAGE(ingot::str_equal(ingot::ssb_to_string(b),
+                                   ingot::str_from_cstr("answer=42")),
+                  "ssb integer");
+
+    ingot::ssb_clear(b);
+    ingot::ssb_format(b, ingot::str_lit("{} {} {}"), ingot::str_lit("a"),
+                      ingot::str_lit("b"), ingot::str_lit("c"));
+    CHECK_MESSAGE(ingot::str_equal(ingot::ssb_to_string(b),
+                                   ingot::str_from_cstr("a b c")),
+                  "ssb multiple strings");
+}
+
+TEST_CASE("ssb_format: no args") {
+    ingot::static_string_builder_t<64> b;
+    ingot::ssb_create(b);
+
+    ingot::ssb_format(b, ingot::str_lit("static text"));
+    CHECK_MESSAGE(ingot::str_equal(ingot::ssb_to_string(b),
+                                   ingot::str_from_cstr("static text")),
+                  "ssb no args");
+}
+
+TEST_CASE("ssb_format: bool and char") {
+    ingot::static_string_builder_t<64> b;
+    ingot::ssb_create(b);
+
+    ingot::ssb_format(b, ingot::str_lit("bool={} char={}"), false, 'Z');
+    CHECK_MESSAGE(ingot::str_equal(ingot::ssb_to_string(b),
+                                   ingot::str_from_cstr("bool=false char=Z")),
+                  "ssb bool and char");
+}
+
+TEST_CASE("ssb_format: int types") {
+    ingot::static_string_builder_t<128> b;
+    ingot::ssb_create(b);
+
+    int32_t i32 = -123;
+    ingot::ssb_format(b, ingot::str_lit("{}"), i32);
+    CHECK_MESSAGE(ingot::str_equal(ingot::ssb_to_string(b),
+                                   ingot::str_from_cstr("-123")),
+                  "int32_t");
+
+    ingot::ssb_clear(b);
+    uint32_t u32 = 456;
+    ingot::ssb_format(b, ingot::str_lit("{}"), u32);
+    CHECK_MESSAGE(ingot::str_equal(ingot::ssb_to_string(b),
+                                   ingot::str_from_cstr("456")),
+                  "uint32_t");
+
+    ingot::ssb_clear(b);
+    int64_t i64 = -999;
+    ingot::ssb_format(b, ingot::str_lit("{}"), i64);
+    CHECK_MESSAGE(ingot::str_equal(ingot::ssb_to_string(b),
+                                   ingot::str_from_cstr("-999")),
+                  "int64_t");
+
+    ingot::ssb_clear(b);
+    uint64_t u64 = 777;
+    ingot::ssb_format(b, ingot::str_lit("{}"), u64);
+    CHECK_MESSAGE(ingot::str_equal(ingot::ssb_to_string(b),
+                                   ingot::str_from_cstr("777")),
+                  "uint64_t");
+}
+
+TEST_CASE("ssb_format: escaped braces") {
+    ingot::static_string_builder_t<64> b;
+    ingot::ssb_create(b);
+
+    ingot::ssb_format(b, ingot::str_lit("open={{ close=}}"));
+    CHECK_MESSAGE(ingot::str_equal(ingot::ssb_to_string(b),
+                                   ingot::str_from_cstr("open={ close=}")),
+                  "ssb escaped braces");
+}
+
+TEST_CASE("ssb_format: append to non-empty") {
+    ingot::static_string_builder_t<128> b;
+    ingot::ssb_create(b);
+
+    ingot::ssb_append(b, ingot::str_from_cstr("pre:"));
+    ingot::ssb_format(b, ingot::str_lit("{}"), 10);
+    CHECK_MESSAGE(ingot::str_equal(ingot::ssb_to_string(b),
+                                   ingot::str_from_cstr("pre:10")),
+                  "ssb append to existing");
+}

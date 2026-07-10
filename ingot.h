@@ -549,6 +549,267 @@ inline bool operator!=(utf8_rune_cursor_t a, utf8_rune_cursor_t b) {
     return a.p != b.p;
 }
 
+// === 스트링 포맷 ===
+
+namespace detail {
+
+template <int64_t N>
+string_t format_u64(char (&buf)[N], uint64_t val) {
+    if (val == 0) {
+        buf[0] = '0';
+        return str_from(buf, 1);
+    }
+    int64_t pos = N;
+    while (val > 0) {
+        pos--;
+        buf[pos] = static_cast<char>('0' + (val % 10));
+        val /= 10;
+    }
+    return str_from(buf + pos, N - pos);
+}
+
+template <int64_t N>
+string_t format_i64(char (&buf)[N], int64_t val) {
+    if (val >= 0) {
+        return format_u64(buf, static_cast<uint64_t>(val));
+    }
+    if (val == INT64_MIN) {
+        const char* lit = "-9223372036854775808";
+        constexpr int64_t len = 20;
+        std::memcpy(buf, lit, static_cast<size_t>(len));
+        return str_from(buf, len);
+    }
+    uint64_t abs_val = static_cast<uint64_t>(-val);
+    string_t digits = format_u64(buf, abs_val);
+    int64_t sign_pos = (digits.data - buf) - 1;
+    ingot_assert_(sign_pos >= 0, "format_i64: buffer too small for sign");
+    buf[sign_pos] = '-';
+    return str_from(buf + sign_pos, digits.len + 1);
+}
+
+inline int64_t count_placeholders(string_t fmt) {
+    int64_t count = 0;
+    for (int64_t i = 0; i < fmt.len; ++i) {
+        if (fmt.data[i] == '{' && i + 1 < fmt.len) {
+            if (fmt.data[i + 1] == '{') {
+                i++;
+            } else if (fmt.data[i + 1] == '}') {
+                count++;
+                i++;
+            }
+        }
+    }
+    return count;
+}
+
+template <typename T>
+void format_one_sb(string_builder_t& b, const void* ptr) {
+    const T& val = *static_cast<const T*>(ptr);
+    if constexpr (std::is_same_v<T, string_t>) {
+        sb_append(b, val);
+    } else if constexpr (std::is_same_v<T, const char*>) {
+        sb_append(b, val);
+    } else if constexpr (std::is_same_v<T, char>) {
+        sb_append(b, val);
+    } else if constexpr (std::is_same_v<T, bool>) {
+        sb_append(b, val ? "true" : "false");
+    } else if constexpr (std::is_same_v<T, char32_t>) {
+        char rune_buf[4];
+        int width = utf8_encode_rune(val, rune_buf);
+        ingot_assert_(width > 0, "sb_format: invalid char32_t rune (U+%04X)",
+                      static_cast<unsigned>(val));
+        sb_append_bytes(b, rune_buf, static_cast<int64_t>(width));
+    } else if constexpr (std::is_floating_point_v<T>) {
+        char fbuf[64];
+        int len = std::snprintf(fbuf, sizeof(fbuf), "%g", static_cast<double>(val));
+        ingot_assert_(len > 0, "sb_format: snprintf failed");
+        sb_append_bytes(b, fbuf, static_cast<int64_t>(len));
+    } else if constexpr (std::is_integral_v<T>) {
+        char nbuf[32];
+        string_t s;
+        if constexpr (std::is_signed_v<T>) {
+            s = format_i64(nbuf, static_cast<int64_t>(val));
+        } else {
+            s = format_u64(nbuf, static_cast<uint64_t>(val));
+        }
+        sb_append(b, s);
+    } else {
+        static_assert(sizeof(T) == 0, "sb_format: unsupported type");
+    }
+}
+
+template <int64_t N, typename T>
+void format_one_ssb(static_string_builder_t<N>& b, const void* ptr) {
+    const T& val = *static_cast<const T*>(ptr);
+    if constexpr (std::is_same_v<T, string_t>) {
+        ssb_append(b, val);
+    } else if constexpr (std::is_same_v<T, const char*>) {
+        ssb_append(b, val);
+    } else if constexpr (std::is_same_v<T, char>) {
+        ssb_append(b, val);
+    } else if constexpr (std::is_same_v<T, bool>) {
+        ssb_append(b, val ? "true" : "false");
+    } else if constexpr (std::is_same_v<T, char32_t>) {
+        char rune_buf[4];
+        int width = utf8_encode_rune(val, rune_buf);
+        ingot_assert_(width > 0, "ssb_format: invalid char32_t rune (U+%04X)",
+                      static_cast<unsigned>(val));
+        ssb_append_bytes(b, rune_buf, static_cast<int64_t>(width));
+    } else if constexpr (std::is_floating_point_v<T>) {
+        char fbuf[64];
+        int len = std::snprintf(fbuf, sizeof(fbuf), "%g", static_cast<double>(val));
+        ingot_assert_(len > 0, "ssb_format: snprintf failed");
+        ssb_append_bytes(b, fbuf, static_cast<int64_t>(len));
+    } else if constexpr (std::is_integral_v<T>) {
+        char nbuf[32];
+        string_t s;
+        if constexpr (std::is_signed_v<T>) {
+            s = format_i64(nbuf, static_cast<int64_t>(val));
+        } else {
+            s = format_u64(nbuf, static_cast<uint64_t>(val));
+        }
+        ssb_append(b, s);
+    } else {
+        static_assert(sizeof(T) == 0, "ssb_format: unsupported type");
+    }
+}
+
+} // namespace detail
+
+template <typename... Args>
+void sb_format(string_builder_t& b, string_t fmt, Args... args) {
+    int64_t n = detail::count_placeholders(fmt);
+    ingot_assert_(n == static_cast<int64_t>(sizeof...(Args)),
+                  "sb_format: placeholder/argument count mismatch "
+                  "(placeholders=%lld, args=%lld)",
+                  static_cast<long long>(n),
+                  static_cast<long long>(sizeof...(Args)));
+
+    if constexpr (sizeof...(Args) == 0) {
+        const char* p = fmt.data;
+        const char* end = fmt.data + fmt.len;
+        while (p < end) {
+            if (p[0] == '{' && p + 1 < end) {
+                if (p[1] == '{') {
+                    sb_append(b, '{');
+                    p += 2;
+                } else if (p[1] == '}') {
+                    ingot_assert_(false, "sb_format: placeholder without matching argument");
+                } else {
+                    ingot_assert_(false, "sb_format: unexpected '{' (not '{{' or '{}')");
+                }
+            } else if (p[0] == '}' && p + 1 < end && p[1] == '}') {
+                sb_append(b, '}');
+                p += 2;
+            } else if (p[0] == '}') {
+                ingot_assert_(false, "sb_format: unexpected '}' (not '}}')");
+            } else {
+                sb_append(b, *p);
+                p++;
+            }
+        }
+        return;
+    }
+
+    using fn_t = void(*)(string_builder_t&, const void*);
+    fn_t fns[] = { &detail::format_one_sb<std::decay_t<Args>>... };
+    const void* ptrs[] = { static_cast<const void*>(&args)... };
+
+    const char* p = fmt.data;
+    const char* end = fmt.data + fmt.len;
+    int64_t idx = 0;
+
+    while (p < end) {
+        if (p[0] == '{' && p + 1 < end) {
+            if (p[1] == '{') {
+                sb_append(b, '{');
+                p += 2;
+            } else if (p[1] == '}') {
+                fns[idx](b, ptrs[idx]);
+                idx++;
+                p += 2;
+            } else {
+                ingot_assert_(false, "sb_format: unexpected '{' (not '{{' or '{}')");
+            }
+        } else if (p[0] == '}' && p + 1 < end && p[1] == '}') {
+            sb_append(b, '}');
+            p += 2;
+        } else if (p[0] == '}') {
+            ingot_assert_(false, "sb_format: unexpected '}' (not '}}')");
+        } else {
+            sb_append(b, *p);
+            p++;
+        }
+    }
+}
+
+template <int64_t N, typename... Args>
+void ssb_format(static_string_builder_t<N>& b, string_t fmt, Args... args) {
+    int64_t n = detail::count_placeholders(fmt);
+    ingot_assert_(n == static_cast<int64_t>(sizeof...(Args)),
+                  "ssb_format: placeholder/argument count mismatch "
+                  "(placeholders=%lld, args=%lld)",
+                  static_cast<long long>(n),
+                  static_cast<long long>(sizeof...(Args)));
+
+    if constexpr (sizeof...(Args) == 0) {
+        const char* p = fmt.data;
+        const char* end = fmt.data + fmt.len;
+        while (p < end) {
+            if (p[0] == '{' && p + 1 < end) {
+                if (p[1] == '{') {
+                    ssb_append(b, '{');
+                    p += 2;
+                } else if (p[1] == '}') {
+                    ingot_assert_(false, "ssb_format: placeholder without matching argument");
+                } else {
+                    ingot_assert_(false, "ssb_format: unexpected '{' (not '{{' or '{}')");
+                }
+            } else if (p[0] == '}' && p + 1 < end && p[1] == '}') {
+                ssb_append(b, '}');
+                p += 2;
+            } else if (p[0] == '}') {
+                ingot_assert_(false, "ssb_format: unexpected '}' (not '}}')");
+            } else {
+                ssb_append(b, *p);
+                p++;
+            }
+        }
+        return;
+    }
+
+    using fn_t = void(*)(static_string_builder_t<N>&, const void*);
+    fn_t fns[] = { &detail::format_one_ssb<N, std::decay_t<Args>>... };
+    const void* ptrs[] = { static_cast<const void*>(&args)... };
+
+    const char* p = fmt.data;
+    const char* end = fmt.data + fmt.len;
+    int64_t idx = 0;
+
+    while (p < end) {
+        if (p[0] == '{' && p + 1 < end) {
+            if (p[1] == '{') {
+                ssb_append(b, '{');
+                p += 2;
+            } else if (p[1] == '}') {
+                fns[idx](b, ptrs[idx]);
+                idx++;
+                p += 2;
+            } else {
+                ingot_assert_(false, "ssb_format: unexpected '{' (not '{{' or '{}')");
+            }
+        } else if (p[0] == '}' && p + 1 < end && p[1] == '}') {
+            ssb_append(b, '}');
+            p += 2;
+        } else if (p[0] == '}') {
+            ingot_assert_(false, "ssb_format: unexpected '}' (not '}}')");
+        } else {
+            ssb_append(b, *p);
+            p++;
+        }
+    }
+}
+
 } // namespace ingot
 
 #endif // INGOT_H_
