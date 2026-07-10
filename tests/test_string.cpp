@@ -29,6 +29,31 @@ TEST_CASE("string_t: str_lit constexpr") {
     CHECK_MESSAGE(ingot::str_len(s) == 5, "literal len excludes NUL");
 }
 
+TEST_CASE("string_t: UDL _str constexpr") {
+    using namespace ingot;
+    constexpr string_t s = "hello"_str;
+    static_assert(s.len == 5, "UDL _str length must be constexpr");
+    CHECK_MESSAGE(str_len(s) == 5, "UDL len is string length");
+    CHECK_MESSAGE(str_at(s, 0) == 'h', "UDL first char");
+    CHECK_MESSAGE(str_at(s, 4) == 'o', "UDL last char");
+}
+
+TEST_CASE("string_t: UDL _str equivalency with str_lit") {
+    using namespace ingot;
+    constexpr string_t a = str_lit("hello");
+    constexpr string_t b = "hello"_str;
+    static_assert(a.len == b.len, "len must match");
+    CHECK_MESSAGE(str_len(a) == str_len(b), "len must match");
+    CHECK_MESSAGE(str_equal(a, b), "must be equal");
+}
+
+TEST_CASE("string_t: UDL _str empty literal") {
+    using namespace ingot;
+    constexpr string_t s = ""_str;
+    static_assert(s.len == 0, "empty string len must be 0");
+    CHECK_MESSAGE(str_is_empty(s), "empty string by UDL");
+}
+
 TEST_CASE("string_t: str_at") {
     ingot::string_t s = ingot::str_from_cstr("abc");
     CHECK_MESSAGE(ingot::str_at(s, 0) == 'a', "at 0");

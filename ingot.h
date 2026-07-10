@@ -283,6 +283,10 @@ constexpr string_t str_lit(const char (&s)[N]) {
     return string_t{.data = s, .len = N - 1};
 }
 
+constexpr string_t operator""_str(const char* s, std::size_t len) {
+    return string_t{.data = s, .len = static_cast<int64_t>(len)};
+}
+
 string_t str_from_cstr(const char* s);
 bool     str_equal(string_t a, string_t b);
 
