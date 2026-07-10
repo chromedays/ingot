@@ -4,6 +4,9 @@
 
 #include "ingot.h"
 
+struct test_vec3 { float x, y, z; };
+format_register_(test_vec3, "({}, {}, {})", _v.x, _v.y, _v.z)
+
 TEST_CASE("string types smoke") {
     CHECK(true);
 }
@@ -737,5 +740,81 @@ TEST_CASE("ssb_format: append to non-empty") {
     ingot::ssb_format(b, ingot::str_lit("{}"), 10);
     CHECK_MESSAGE(ingot::str_equal(ingot::ssb_to_string(b),
                                    ingot::str_from_cstr("pre:10")),
-                  "ssb append to existing");
+                   "ssb append to existing");
+}
+
+TEST_CASE("sb_format: user-defined type via macro") {
+    ingot::heap_allocator_t heap;
+    ingot::string_builder_t b;
+    ingot::sb_create(b, heap, 0);
+
+    ingot::sb_format(b, ingot::str_lit("vec: {}"), test_vec3{1.5f, 2.5f, 3.5f});
+    CHECK_MESSAGE(ingot::str_equal(ingot::sb_to_string(b),
+                                   ingot::str_from_cstr("vec: (1.5, 2.5, 3.5)")),
+                  "vec3 formatted");
+
+    ingot::sb_destroy(b);
+}
+
+TEST_CASE("sb_format: user-defined type via format_register") {
+    ingot::heap_allocator_t heap;
+    ingot::string_builder_t b;
+    ingot::sb_create(b, heap, 0);
+
+    struct point2 { int x, y; };
+
+    ingot::format_register<point2>([](ingot::string_builder_t& b, const void* ptr) {
+        const auto& p = *static_cast<const point2*>(ptr);
+        ingot::sb_format(b, ingot::str_lit("[{}, {}]"), p.x, p.y);
+    });
+
+    ingot::sb_format(b, ingot::str_lit("p: {}"), point2{10, 20});
+    CHECK_MESSAGE(ingot::str_equal(ingot::sb_to_string(b),
+                                   ingot::str_from_cstr("p: [10, 20]")),
+                  "point2 formatted");
+
+    ingot::sb_destroy(b);
+}
+
+TEST_CASE("sb_format: overwrite registered formatter") {
+    ingot::heap_allocator_t heap;
+    ingot::string_builder_t b;
+    ingot::sb_create(b, heap, 0);
+
+    struct tagged { int id; const char* name; };
+
+    ingot::format_register<tagged>([](ingot::string_builder_t& b, const void* ptr) {
+        const auto& t = *static_cast<const tagged*>(ptr);
+        ingot::sb_format(b, ingot::str_lit("<{}>"), t.id);
+    });
+    ingot::sb_format(b, ingot::str_lit("t: {}"), tagged{1, "a"});
+    CHECK_MESSAGE(ingot::str_equal(ingot::sb_to_string(b),
+                                   ingot::str_from_cstr("t: <1>")),
+                  "first registration");
+
+    ingot::sb_clear(b);
+    ingot::format_register<tagged>([](ingot::string_builder_t& b, const void* ptr) {
+        const auto& t = *static_cast<const tagged*>(ptr);
+        ingot::sb_format(b, ingot::str_lit("[{}, {}]"), t.id, ingot::str_from_cstr(t.name));
+    });
+    ingot::sb_format(b, ingot::str_lit("t: {}"), tagged{1, "a"});
+    CHECK_MESSAGE(ingot::str_equal(ingot::sb_to_string(b),
+                                   ingot::str_from_cstr("t: [1, a]")),
+                  "overwritten registration");
+
+    ingot::sb_destroy(b);
+}
+
+TEST_CASE("sb_format: mixed builtin and user-defined types") {
+    ingot::heap_allocator_t heap;
+    ingot::string_builder_t b;
+    ingot::sb_create(b, heap, 0);
+
+    ingot::sb_format(b, ingot::str_lit("v={} n={} b={}"),
+                     test_vec3{1, 2, 3}, 42, true);
+    CHECK_MESSAGE(ingot::str_equal(ingot::sb_to_string(b),
+                                   ingot::str_from_cstr("v=(1, 2, 3) n=42 b=true")),
+                  "mixed types");
+
+    ingot::sb_destroy(b);
 }
