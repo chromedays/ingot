@@ -551,6 +551,16 @@ inline bool operator!=(utf8_rune_cursor_t a, utf8_rune_cursor_t b) {
 
 // === 스트링 포맷 ===
 
+using format_fn_t = void (*)(string_builder_t& b, const void* ptr);
+
+template <typename T>
+inline format_fn_t format_dispatch = nullptr;
+
+template <typename T>
+void format_register(format_fn_t fn) {
+    format_dispatch<T> = fn;
+}
+
 namespace detail {
 
 template <int64_t N>
@@ -634,7 +644,11 @@ void format_one_sb(string_builder_t& b, const void* ptr) {
         }
         sb_append(b, s);
     } else {
-        static_assert(sizeof(T) == 0, "sb_format: unsupported type");
+        if (format_dispatch<T> != nullptr) {
+            format_dispatch<T>(b, ptr);
+        } else {
+            ingot_assert_(false, "sb_format: unsupported type (no formatter registered)");
+        }
     }
 }
 
@@ -675,6 +689,19 @@ void format_one_ssb(static_string_builder_t<N>& b, const void* ptr) {
 }
 
 } // namespace detail
+
+#define format_register_(Type, fmt_str, ...)                              \
+    namespace {                                                            \
+        static const auto _fmt_reg_##Type =                                \
+            (::ingot::format_register<Type>(                               \
+                [](::ingot::string_builder_t& b,                           \
+                   const void* _ptr) {                                     \
+                    const auto& _v =                                       \
+                        *static_cast<const Type*>(_ptr);                    \
+                    ::ingot::sb_format(b, ::ingot::str_lit(fmt_str),      \
+                                       __VA_ARGS__);                      \
+                }), 0);                                                    \
+    }
 
 template <typename... Args>
 void sb_format(string_builder_t& b, string_t fmt, Args... args) {
