@@ -551,15 +551,21 @@ inline bool operator!=(utf8_rune_cursor_t a, utf8_rune_cursor_t b) {
 
 // === 스트링 포맷 ===
 
-using format_fn_t = void (*)(string_builder_t& b, const void* ptr);
-
 template <typename T>
-inline format_fn_t format_dispatch = nullptr;
+struct format_traits {
+    template <typename B>
+    static void write(B& b, const T& val) {
+        static_assert(sizeof(T) == 0,
+            "No formatter registered for this type. "
+            "Use format_register_(Type, fmt_str, ...) to register one.");
+    }
+};
 
-template <typename T>
-void format_register(format_fn_t fn) {
-    format_dispatch<T> = fn;
-}
+template <typename... Args>
+void format_write(string_builder_t& b, string_t fmt, Args&&... args);
+
+template <int64_t N, typename... Args>
+void format_write(static_string_builder_t<N>& b, string_t fmt, Args&&... args);
 
 namespace detail {
 
@@ -644,11 +650,7 @@ void format_one_sb(string_builder_t& b, const void* ptr) {
         }
         sb_append(b, s);
     } else {
-        if (format_dispatch<T> != nullptr) {
-            format_dispatch<T>(b, ptr);
-        } else {
-            ingot_assert_(false, "sb_format: unsupported type (no formatter registered)");
-        }
+        format_traits<T>::write(b, val);
     }
 }
 
@@ -684,24 +686,21 @@ void format_one_ssb(static_string_builder_t<N>& b, const void* ptr) {
         }
         ssb_append(b, s);
     } else {
-        static_assert(sizeof(T) == 0, "ssb_format: unsupported type");
+        format_traits<T>::write(b, val);
     }
 }
 
 } // namespace detail
 
 #define format_register_(Type, fmt_str, ...)                              \
-    namespace {                                                            \
-        static const auto _fmt_reg_##Type =                                \
-            (::ingot::format_register<Type>(                               \
-                [](::ingot::string_builder_t& b,                           \
-                   const void* _ptr) {                                     \
-                    const auto& _v =                                       \
-                        *static_cast<const Type*>(_ptr);                    \
-                    ::ingot::sb_format(b, ::ingot::str_lit(fmt_str),      \
-                                       __VA_ARGS__);                      \
-                }), 0);                                                    \
-    }
+    template <>                                                            \
+    struct ::ingot::format_traits<Type> {                                  \
+        template <typename _B>                                             \
+        static void write(_B& b, const Type& _v) {                        \
+            format_write(b, ::ingot::str_lit(fmt_str),                    \
+                         __VA_ARGS__);                                     \
+        }                                                                  \
+    };
 
 template <typename... Args>
 void sb_format(string_builder_t& b, string_t fmt, Args... args) {
@@ -836,6 +835,80 @@ void ssb_format(static_string_builder_t<N>& b, string_t fmt, Args... args) {
         }
     }
 }
+
+template <typename... Args>
+void format_write(string_builder_t& b, string_t fmt, Args&&... args) {
+    sb_format(b, fmt, static_cast<Args&&>(args)...);
+}
+
+template <int64_t N, typename... Args>
+void format_write(static_string_builder_t<N>& b, string_t fmt, Args&&... args) {
+    ssb_format(b, fmt, static_cast<Args&&>(args)...);
+}
+
+template <typename T>
+struct format_traits<static_vector_t<T>> {
+    template <typename B>
+    static void write(B& b, const static_vector_t<T>& v) {
+        format_write(b, str_lit("["));
+        int64_t n = sv_count(v);
+        for (int64_t i = 0; i < n; ++i) {
+            if (i > 0) format_write(b, str_lit(", "));
+            format_write(b, str_lit("{}"), v[i]);
+        }
+        format_write(b, str_lit("]"));
+    }
+};
+
+template <typename T>
+struct format_traits<view_t<T>> {
+    template <typename B>
+    static void write(B& b, view_t<T> v) {
+        format_write(b, str_lit("["));
+        int64_t n = view_len(v);
+        for (int64_t i = 0; i < n; ++i) {
+            if (i > 0) format_write(b, str_lit(", "));
+            format_write(b, str_lit("{}"), view_at(v, i));
+        }
+        format_write(b, str_lit("]"));
+    }
+};
+
+template <>
+struct format_traits<string_t> {
+    template <typename B>
+    static void write(B& b, string_t val) {
+        format_write(b, str_lit("{}"), val);
+    }
+};
+
+template <>
+struct format_traits<string_builder_t> {
+    template <typename B>
+    static void write(B& b, const string_builder_t& sb) {
+        format_write(b, str_lit("{}"), sb_to_string(sb));
+        format_write(b, str_lit(" [{}/{}]"), sb_len(sb), sb_capacity(sb));
+    }
+};
+
+template <int64_t N>
+struct format_traits<static_string_builder_t<N>> {
+    template <typename B>
+    static void write(B& b, const static_string_builder_t<N>& sb) {
+        format_write(b, str_lit("{}"), ssb_to_string(sb));
+        format_write(b, str_lit(" [{}/{}]"), ssb_len(sb), N);
+    }
+};
+
+template <>
+struct format_traits<utf8_rune_view_t> {
+    template <typename B>
+    static void write(B& b, utf8_rune_view_t v) {
+        for (auto c = begin(v); c != end(v); ++c) {
+            format_write(b, str_lit("{}"), *c);
+        }
+    }
+};
 
 } // namespace ingot
 

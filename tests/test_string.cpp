@@ -7,6 +7,15 @@
 struct test_vec3 { float x, y, z; };
 format_register_(test_vec3, "({}, {}, {})", _v.x, _v.y, _v.z)
 
+struct test_point2 { int x, y; };
+format_register_(test_point2, "[{}, {}]", _v.x, _v.y)
+
+struct test_tagged { int id; const char* name; };
+format_register_(test_tagged, "[{}, {}]", _v.id, ingot::str_from_cstr(_v.name))
+
+struct test_ssb_val { int a, b; };
+format_register_(test_ssb_val, "({}, {})", _v.a, _v.b)
+
 TEST_CASE("string types smoke") {
     CHECK(true);
 }
@@ -743,7 +752,17 @@ TEST_CASE("ssb_format: append to non-empty") {
                    "ssb append to existing");
 }
 
-TEST_CASE("sb_format: user-defined type via macro") {
+TEST_CASE("ssb_format: user-defined type") {
+    ingot::static_string_builder_t<128> b;
+    ingot::ssb_create(b);
+
+    ingot::ssb_format(b, ingot::str_lit("val: {}"), test_ssb_val{3, 7});
+    CHECK_MESSAGE(ingot::str_equal(ingot::ssb_to_string(b),
+                                   ingot::str_from_cstr("val: (3, 7)")),
+                  "ssb user-defined type");
+}
+
+TEST_CASE("sb_format: user-defined struct via macro") {
     ingot::heap_allocator_t heap;
     ingot::string_builder_t b;
     ingot::sb_create(b, heap, 0);
@@ -756,19 +775,12 @@ TEST_CASE("sb_format: user-defined type via macro") {
     ingot::sb_destroy(b);
 }
 
-TEST_CASE("sb_format: user-defined type via format_register") {
+TEST_CASE("sb_format: local struct via macro") {
     ingot::heap_allocator_t heap;
     ingot::string_builder_t b;
     ingot::sb_create(b, heap, 0);
 
-    struct point2 { int x, y; };
-
-    ingot::format_register<point2>([](ingot::string_builder_t& b, const void* ptr) {
-        const auto& p = *static_cast<const point2*>(ptr);
-        ingot::sb_format(b, ingot::str_lit("[{}, {}]"), p.x, p.y);
-    });
-
-    ingot::sb_format(b, ingot::str_lit("p: {}"), point2{10, 20});
+    ingot::sb_format(b, ingot::str_lit("p: {}"), test_point2{10, 20});
     CHECK_MESSAGE(ingot::str_equal(ingot::sb_to_string(b),
                                    ingot::str_from_cstr("p: [10, 20]")),
                   "point2 formatted");
@@ -776,31 +788,15 @@ TEST_CASE("sb_format: user-defined type via format_register") {
     ingot::sb_destroy(b);
 }
 
-TEST_CASE("sb_format: overwrite registered formatter") {
+TEST_CASE("sb_format: user-defined type with name field") {
     ingot::heap_allocator_t heap;
     ingot::string_builder_t b;
     ingot::sb_create(b, heap, 0);
 
-    struct tagged { int id; const char* name; };
-
-    ingot::format_register<tagged>([](ingot::string_builder_t& b, const void* ptr) {
-        const auto& t = *static_cast<const tagged*>(ptr);
-        ingot::sb_format(b, ingot::str_lit("<{}>"), t.id);
-    });
-    ingot::sb_format(b, ingot::str_lit("t: {}"), tagged{1, "a"});
-    CHECK_MESSAGE(ingot::str_equal(ingot::sb_to_string(b),
-                                   ingot::str_from_cstr("t: <1>")),
-                  "first registration");
-
-    ingot::sb_clear(b);
-    ingot::format_register<tagged>([](ingot::string_builder_t& b, const void* ptr) {
-        const auto& t = *static_cast<const tagged*>(ptr);
-        ingot::sb_format(b, ingot::str_lit("[{}, {}]"), t.id, ingot::str_from_cstr(t.name));
-    });
-    ingot::sb_format(b, ingot::str_lit("t: {}"), tagged{1, "a"});
+    ingot::sb_format(b, ingot::str_lit("t: {}"), test_tagged{1, "a"});
     CHECK_MESSAGE(ingot::str_equal(ingot::sb_to_string(b),
                                    ingot::str_from_cstr("t: [1, a]")),
-                  "overwritten registration");
+                  "tagged formatted");
 
     ingot::sb_destroy(b);
 }
@@ -815,6 +811,135 @@ TEST_CASE("sb_format: mixed builtin and user-defined types") {
     CHECK_MESSAGE(ingot::str_equal(ingot::sb_to_string(b),
                                    ingot::str_from_cstr("v=(1, 2, 3) n=42 b=true")),
                   "mixed types");
+
+    ingot::sb_destroy(b);
+}
+
+TEST_CASE("format container: empty static_vector") {
+    ingot::heap_allocator_t heap;
+    ingot::static_vector_t<int> v;
+    ingot::sv_create(v, heap, 4);
+
+    ingot::string_builder_t b;
+    ingot::sb_create(b, heap, 0);
+    ingot::sb_format(b, ingot::str_lit("v: {}"), v);
+    CHECK_MESSAGE(ingot::str_equal(ingot::sb_to_string(b),
+                                   ingot::str_from_cstr("v: []")),
+                  "empty vector");
+
+    ingot::sb_destroy(b);
+    ingot::sv_destroy(v);
+}
+
+TEST_CASE("format container: static_vector with elements") {
+    ingot::heap_allocator_t heap;
+    ingot::static_vector_t<int> v;
+    ingot::sv_create(v, heap, 4);
+    ingot::sv_push(v, 1);
+    ingot::sv_push(v, 2);
+    ingot::sv_push(v, 3);
+
+    ingot::string_builder_t b;
+    ingot::sb_create(b, heap, 0);
+    ingot::sb_format(b, ingot::str_lit("v: {}"), v);
+    CHECK_MESSAGE(ingot::str_equal(ingot::sb_to_string(b),
+                                   ingot::str_from_cstr("v: [1, 2, 3]")),
+                  "vector with elements");
+
+    ingot::sb_destroy(b);
+    ingot::sv_destroy(v);
+}
+
+TEST_CASE("format container: recursive formatting") {
+    ingot::heap_allocator_t heap;
+    ingot::static_vector_t<test_vec3> v;
+    ingot::sv_create(v, heap, 4);
+    ingot::sv_push(v, test_vec3{1, 2, 3});
+    ingot::sv_push(v, test_vec3{4, 5, 6});
+
+    ingot::string_builder_t b;
+    ingot::sb_create(b, heap, 0);
+    ingot::sb_format(b, ingot::str_lit("v: {}"), v);
+    CHECK_MESSAGE(ingot::str_equal(ingot::sb_to_string(b),
+                                   ingot::str_from_cstr("v: [(1, 2, 3), (4, 5, 6)]")),
+                  "recursive vector");
+
+    ingot::sb_destroy(b);
+    ingot::sv_destroy(v);
+}
+
+TEST_CASE("format container: string_t") {
+    ingot::heap_allocator_t heap;
+    ingot::string_builder_t b;
+    ingot::sb_create(b, heap, 0);
+
+    ingot::string_t s = ingot::str_from_cstr("hello");
+    ingot::sb_format(b, ingot::str_lit("s: {}"), s);
+    CHECK_MESSAGE(ingot::str_equal(ingot::sb_to_string(b),
+                                   ingot::str_from_cstr("s: hello")),
+                  "string_t");
+
+    ingot::sb_destroy(b);
+}
+
+TEST_CASE("format container: string_builder_t") {
+    ingot::heap_allocator_t heap;
+    ingot::string_builder_t sb;
+    ingot::sb_create(sb, heap, 64);
+    ingot::sb_append(sb, ingot::str_from_cstr("hi"));
+
+    ingot::string_builder_t out;
+    ingot::sb_create(out, heap, 0);
+    ingot::sb_format(out, ingot::str_lit("b: {}"), sb);
+    CHECK_MESSAGE(ingot::str_equal(ingot::sb_to_string(out),
+                                   ingot::str_from_cstr("b: hi [2/64]")),
+                  "string_builder_t");
+
+    ingot::sb_destroy(out);
+    ingot::sb_destroy(sb);
+}
+
+TEST_CASE("format container: static_string_builder_t") {
+    ingot::heap_allocator_t heap;
+    ingot::static_string_builder_t<32> ssb;
+    ingot::ssb_create(ssb);
+    ingot::ssb_append(ssb, ingot::str_from_cstr("abc"));
+
+    ingot::string_builder_t b;
+    ingot::sb_create(b, heap, 0);
+    ingot::sb_format(b, ingot::str_lit("b: {}"), ssb);
+    CHECK_MESSAGE(ingot::str_equal(ingot::sb_to_string(b),
+                                   ingot::str_from_cstr("b: abc [3/32]")),
+                  "static_string_builder_t");
+
+    ingot::sb_destroy(b);
+}
+
+TEST_CASE("format container: utf8_rune_view_t") {
+    ingot::heap_allocator_t heap;
+    ingot::string_builder_t b;
+    ingot::sb_create(b, heap, 0);
+
+    ingot::utf8_rune_view_t r = ingot::utf8_runes(ingot::str_from_cstr("한글"));
+    ingot::sb_format(b, ingot::str_lit("r: {}"), r);
+    CHECK_MESSAGE(ingot::str_equal(ingot::sb_to_string(b),
+                                   ingot::str_from_cstr("r: 한글")),
+                  "utf8_rune_view_t");
+
+    ingot::sb_destroy(b);
+}
+
+TEST_CASE("format container: view_t") {
+    ingot::heap_allocator_t heap;
+    int arr[] = {10, 20, 30};
+    ingot::view_t<int> v = ingot::view_from(arr);
+
+    ingot::string_builder_t b;
+    ingot::sb_create(b, heap, 0);
+    ingot::sb_format(b, ingot::str_lit("v: {}"), v);
+    CHECK_MESSAGE(ingot::str_equal(ingot::sb_to_string(b),
+                                   ingot::str_from_cstr("v: [10, 20, 30]")),
+                  "view_t");
 
     ingot::sb_destroy(b);
 }
