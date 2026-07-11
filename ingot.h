@@ -561,6 +561,8 @@ struct format_traits {
     }
 };
 
+// 동적/정적 빌더의 포맷 API 차이를 숨겨 format_traits에서
+// 빌더 타입과 무관하게 재귀 포매팅할 수 있게 한다.
 template <typename... Args>
 void format_write(string_builder_t& b, string_t fmt, Args&&... args);
 
